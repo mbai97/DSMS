@@ -34,9 +34,9 @@ require __DIR__ . '/../includes/header.php';
 <div class="row justify-content-center">
     <div class="col-md-5">
         <div class="card p-4 portal-login-card">
-            <div class="portal-eyebrow">BeckynDS Certificate Registry</div>
+            <div class="portal-eyebrow">BeckynDS Admin Panel</div>
             <h2 class="fw-bold mb-1">Admin Login</h2>
-            <p class="text-muted">Manage certificates and verify learner records.</p>
+            <p class="text-muted">Manage all administrative functions.</p>
 
             <?php if ($error): ?>
                 <div class="alert alert-danger"><?= e($error) ?></div>
@@ -53,6 +53,7 @@ require __DIR__ . '/../includes/header.php';
                     <input type="password" name="password" class="form-control" required autocomplete="current-password">
                 </div>
                 <button class="btn btn-primary w-100">Sign In</button>
+                <button class="btn btn-secondary w-100"> Forgot Password</button>
             </form>
         </div>
     </div>

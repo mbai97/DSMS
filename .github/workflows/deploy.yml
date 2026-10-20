@@ -1,11 +1,14 @@
+
 name: Deploy Beckyn Certificate System
 
 on:
   push:
     branches:
       - main
-
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
@@ -16,6 +19,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Verify admin files
+        run: |
+          echo "Checking admin directory..."
+          if [ ! -d "admin" ]; then
+            echo "ERROR: admin directory is missing from checkout"
+            exit 1
+          fi
+
+          find admin -type f -print | sort
+
+          echo "Total admin files:"
+          find admin -type f | wc -l
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -45,11 +61,13 @@ jobs:
           server-dir: ${{ secrets.FTP_SERVER_DIR }}
 
           dangerous-clean-slate: false
+          log-level: verbose
 
           exclude: |
             **/.git*
             **/.git*/**
             **/.github/**
+            **/node_modules/**
             **/config/config.php
             **/storage/certificates/**
             **/storage/qrcodes/**
