@@ -69,7 +69,7 @@ require __DIR__ . '/../includes/header.php';
             <tr><th>Balance due</th><td>KES <?= number_format(max(0, (float)$student['total_fee'] - (float)$student['amount_paid']), 2) ?></td></tr>
         </tbody>
     </table></div>
-    <p>Please report to your selected branch and contact the school administration if you need assistance with your training schedule or fee balance. We look forward to supporting your learning.</p>
+    <p>Please report to your selected branch and contact the school administration if you need assistance with your training schedule or fee balance. We look forward to supporting your learning. Welcome!.</p>
     <div class="mt-auto pt-5">
         <?php if ($signatureUrl): ?><img src="<?= e($signatureUrl) ?>" alt="Director signature" style="max-width:220px; max-height:80px; display:block"><?php else: ?><div style="height:80px"></div><?php endif; ?>
         <div class="border-top pt-2" style="max-width:320px"><strong><?= e($directorName ?: 'Director') ?></strong><br><?= e($directorTitle) ?></div>
