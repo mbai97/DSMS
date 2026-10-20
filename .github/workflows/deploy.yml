@@ -61,26 +61,54 @@ jobs:
           python3 - <<'PY'
           import ftplib
           import os
+          import re
+          import socket
           import sys
 
-          server = os.environ["FTP_SERVER"]
-          username = os.environ["FTP_USERNAME"]
-          password = os.environ["FTP_PASSWORD"]
-          server_dir = os.environ["FTP_SERVER_DIR"]
+          server = os.environ.get("FTP_SERVER", "").strip()
+          username = os.environ.get("FTP_USERNAME", "").strip()
+          password = os.environ.get("FTP_PASSWORD", "")
+          server_dir = os.environ.get("FTP_SERVER_DIR", "").strip()
           protocol = os.environ.get("FTP_PROTOCOL", "ftp").lower()
-          port = int(os.environ.get("FTP_PORT") or 21)
+          port_value = os.environ.get("FTP_PORT", "").strip()
 
+          if not server or not username or not password:
+              sys.exit("FTP_SERVER, FTP_USERNAME, and FTP_PASSWORD must be set in GitHub Actions secrets.")
           if not server_dir:
               sys.exit("FTP_SERVER_DIR is empty. Set it to the existing application directory visible to this FTP account.")
           if protocol not in ("ftp", "ftps"):
               sys.exit("FTP_PROTOCOL must be ftp or ftps.")
+          try:
+              port = int(port_value or "21")
+              if not 1 <= port <= 65535:
+                  raise ValueError
+          except ValueError:
+              sys.exit("FTP_PORT must be a valid port number between 1 and 65535.")
+          if any(character.isspace() for character in server) or "/" in server:
+              sys.exit("FTP_SERVER must be a hostname only, without a protocol prefix, path, or spaces.")
+          if re.fullmatch(r"[A-Za-z0-9.-]+", server) is None:
+              sys.exit("FTP_SERVER contains invalid characters. Use the FTP hostname provided by your hosting account.")
+
+          try:
+              socket.getaddrinfo(server, port)
+          except socket.gaierror as error:
+              sys.exit(
+                  f"FTP_SERVER '{server}' could not be resolved. Update the FTP_SERVER GitHub Actions "
+                  "secret with the exact FTP hostname provided by your hosting account."
+              )
 
           ftp = ftplib.FTP_TLS() if protocol == "ftps" else ftplib.FTP()
           try:
-              ftp.connect(server, port, timeout=20)
-              ftp.login(username, password)
-              if protocol == "ftps":
-                  ftp.prot_p()
+              try:
+                  ftp.connect(server, port, timeout=20)
+                  ftp.login(username, password)
+                  if protocol == "ftps":
+                      ftp.prot_p()
+              except ftplib.all_errors as error:
+                  raise RuntimeError(
+                      f"Could not connect or authenticate to FTP server '{server}' on port {port}. "
+                      "Check FTP_SERVER, FTP_PORT, FTP_PROTOCOL, and the hosting firewall/account settings."
+                  ) from error
               try:
                   ftp.cwd(server_dir)
               except ftplib.all_errors as error:
@@ -104,10 +132,11 @@ jobs:
                           "FTP account permission to create directories."
                       ) from error
           finally:
-              try:
-                  ftp.quit()
-              except ftplib.all_errors:
-                  ftp.close()
+              if ftp.sock is not None:
+                  try:
+                      ftp.quit()
+                  except ftplib.all_errors:
+                      ftp.close()
           PY
 
       - name: Deploy via FTP/FTPS
