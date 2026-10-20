@@ -49,6 +49,67 @@ jobs:
             --no-interaction \
             --optimize-autoloader
 
+      - name: Verify FTP deployment directory
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_PORT: ${{ secrets.FTP_PORT }}
+          FTP_PROTOCOL: ${{ secrets.FTP_PROTOCOL }}
+          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+        run: |
+          python3 - <<'PY'
+          import ftplib
+          import os
+          import sys
+
+          server = os.environ["FTP_SERVER"]
+          username = os.environ["FTP_USERNAME"]
+          password = os.environ["FTP_PASSWORD"]
+          server_dir = os.environ["FTP_SERVER_DIR"]
+          protocol = os.environ.get("FTP_PROTOCOL", "ftp").lower()
+          port = int(os.environ.get("FTP_PORT") or 21)
+
+          if not server_dir:
+              sys.exit("FTP_SERVER_DIR is empty. Set it to the existing application directory visible to this FTP account.")
+          if protocol not in ("ftp", "ftps"):
+              sys.exit("FTP_PROTOCOL must be ftp or ftps.")
+
+          ftp = ftplib.FTP_TLS() if protocol == "ftps" else ftplib.FTP()
+          try:
+              ftp.connect(server, port, timeout=20)
+              ftp.login(username, password)
+              if protocol == "ftps":
+                  ftp.prot_p()
+              try:
+                  ftp.cwd(server_dir)
+              except ftplib.all_errors as error:
+                  raise RuntimeError(
+                      "FTP_SERVER_DIR is not reachable. Set it to the existing application directory "
+                      "as seen by this FTP account (for example, /public_html/certificates/)."
+                  ) from error
+
+              try:
+                  ftp.mkd("admin")
+                  print("Created remote admin directory.")
+              except ftplib.error_perm:
+                  try:
+                      ftp.cwd("admin")
+                      ftp.cwd("..")
+                      print("Remote admin directory already exists.")
+                  except ftplib.all_errors as error:
+                      raise RuntimeError(
+                          "The deployment root is reachable, but its admin directory is missing and "
+                          "could not be created. Create it in the hosting file manager or grant this "
+                          "FTP account permission to create directories."
+                      ) from error
+          finally:
+              try:
+                  ftp.quit()
+              except ftplib.all_errors:
+                  ftp.close()
+          PY
+
       - name: Deploy via FTP/FTPS
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:

@@ -299,10 +299,10 @@ The included workflow is:
 It:
 
 1. Checks out the repository.
-2. Installs Composer dependencies.
-3. Uploads the application through FTP/FTPS.
-4. Preserves `config/config.php`.
-5. Does not upload `.git`, local config, local logs, or local generated files.
+3. Checks that `FTP_SERVER_DIR` exists for the configured FTP account and creates the remote `admin` folder if it is missing.
+4. Uploads the application through FTP/FTPS.
+5. Preserves `config/config.php`.
+6. Does not upload `.git`, local config, local logs, or local generated files.
 
 The GitHub FTP Deploy Action supports FTP/FTPS and accepts server, username, password, port, protocol, local-dir and server-dir settings.
 
@@ -335,6 +335,7 @@ FTP_SERVER_DIR=/public_html/certificates/
 ```
 
 Use the exact FTP hostname and path provided by your hosting account. Do not guess them.
+The deployment workflow checks this path before upload. If it reports that `FTP_SERVER_DIR` is unreachable, correct the secret to the existing project directory visible to that FTP account. If it reports that `admin` cannot be created, create the `admin` folder in the hosting file manager or grant the FTP account permission to create directories there.
 
 If your host supports FTPS, prefer:
 
