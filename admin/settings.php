@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $filename = 'signature-' . time() . '.' . $ext;
             $target = $targetDir . '/' . $filename;
             if (move_uploaded_file($upload['tmp_name'], $target)) {
-                save_setting($db, 'signature_file', $filename);
+                update_setting($db, 'signature_file', $filename);
                 $success = 'Signature uploaded successfully.';
             } else {
                 $errors[] = 'Unable to save signature image.';
@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     foreach (['brand_color', 'accent_color', 'gold_color', 'signature_label'] as $key) {
         if (isset($_POST[$key])) {
-            save_setting($db, $key, trim((string)$_POST[$key]));
+            update_setting($db, $key, trim((string)$_POST[$key]));
         }
     }
 

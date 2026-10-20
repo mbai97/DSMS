@@ -46,20 +46,110 @@ CREATE TABLE IF NOT EXISTS app_migrations (
 -- MODULE 3: STUDENT/LEARNER MANAGEMENT
 -- ============================================================================
 
+CREATE TABLE IF NOT EXISTS branches (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    code VARCHAR(8) NOT NULL UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS courses (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(150) NOT NULL UNIQUE,
+    code VARCHAR(8) NOT NULL UNIQUE,
+    certificate_type VARCHAR(150) NOT NULL,
+    duration_days SMALLINT UNSIGNED NULL,
+    default_fee DECIMAL(10,2) NULL,
+    active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS students (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     learner_id VARCHAR(80) NULL UNIQUE,
+    admission_number VARCHAR(40) NULL UNIQUE,
     holder_name VARCHAR(190) NOT NULL,
     course_name VARCHAR(190) NOT NULL,
+    course_id INT UNSIGNED NULL,
+    branch_id INT UNSIGNED NULL,
+    course_duration_days SMALLINT UNSIGNED NULL,
+    total_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    completed_on DATE NULL,
+    certificate_id BIGINT UNSIGNED NULL UNIQUE,
     enrollment_date DATE NOT NULL,
-    status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+    status ENUM('active','inactive','completed') NOT NULL DEFAULT 'active',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     KEY idx_students_holder_name (holder_name),
     KEY idx_students_course (course_name),
+    KEY idx_students_branch (branch_id),
     KEY idx_students_status (status),
     KEY idx_enrollment_date (enrollment_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS admission_sequences (
+    branch_id INT UNSIGNED NOT NULL,
+    course_id INT UNSIGNED NOT NULL,
+    admission_year SMALLINT UNSIGNED NOT NULL,
+    last_number INT UNSIGNED NOT NULL DEFAULT 0,
+    PRIMARY KEY (branch_id, course_id, admission_year),
+    CONSTRAINT fk_sequence_branch FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_sequence_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS vehicles (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    registration_no VARCHAR(30) NOT NULL UNIQUE,
+    make_model VARCHAR(120) NOT NULL,
+    branch_id INT UNSIGNED NOT NULL,
+    status ENUM('available','maintenance','retired') NOT NULL DEFAULT 'available',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_vehicles_branch (branch_id),
+    KEY idx_vehicles_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS fleet_assignments (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    vehicle_id BIGINT UNSIGNED NOT NULL,
+    student_id BIGINT UNSIGNED NULL,
+    branch_id INT UNSIGNED NOT NULL,
+    assigned_on DATE NOT NULL,
+    returned_on DATE NULL,
+    created_by INT UNSIGNED NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_fleet_current (vehicle_id, returned_on),
+    KEY idx_fleet_student (student_id),
+    CONSTRAINT fk_fleet_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_fleet_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE SET NULL,
+    CONSTRAINT fk_fleet_branch FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_fleet_admin FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS student_payments (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    student_id BIGINT UNSIGNED NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    payment_method ENUM('cash','mpesa','airtel_money','bank','other') NOT NULL,
+    reference VARCHAR(100) NULL,
+    notes VARCHAR(255) NULL,
+    received_by INT UNSIGNED NULL,
+    paid_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_payments_student (student_id),
+    KEY idx_payments_paid_at (paid_at),
+    CONSTRAINT fk_payment_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+    CONSTRAINT fk_payment_admin FOREIGN KEY (received_by) REFERENCES admins(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO branches (name, code) VALUES
+    ('Machakos', 'MAC'), ('Tala', 'TAL'), ('Kimutwa', 'KIM'), ('Kitengela', 'KIT');
+
+INSERT IGNORE INTO courses (name, code, certificate_type) VALUES
+    ('Driving School', 'DR', 'Certificate of Competence'),
+    ('Computer Packages', 'CP', 'Computer Packages'),
+    ('Defensive Driving', 'DD', 'Defensive Driving'),
+    ('Mechanics', 'ME', 'Mechanical Artisan');
 
 -- ============================================================================
 -- MODULE 4: CERTIFICATE MANAGEMENT

@@ -15,6 +15,12 @@ A lightweight PHP/MySQL certificate issuing and QR verification system designed 
 - VALID / EXPIRED / REVOKED / NOT FOUND status
 - Verification logging
 - Revoke certificates
+- Enroll students into Driving School, Computer Packages, Defensive Driving, or Mechanics programs
+- Branch-specific admission numbers for Machakos, Tala, Kimutwa, and Kitengela
+- Configurable course durations and fees, student balances, and payment ledger
+- Vehicle fleet tracking and student assignments by branch
+- Director dashboard for branch enrollment, fee, fleet, and certificate summaries
+- Director-signed certificates awarded after the configured course duration
 - Bootstrap 5 responsive interface
 - GitHub Actions deployment to shared hosting over FTP/FTPS
 - No Node.js, Docker, VPS, FastAPI, or Next.js required
@@ -116,6 +122,16 @@ The generated certificate is a single A4 landscape page using a restrained navy,
 Use the browser's actual application URL in `config/config.php`. Keep the localhost URL for local development; on the production server set `app_url` to the final public HTTPS URL (for example, `https://verify.beckynds.splentainsights.com`) only after the app is deployed there and its production database contains the certificate records. The QR code embeds this configured URL when each PDF is generated. Scanning a locally generated QR from another device will not work unless the local server is publicly reachable.
 
 The issue form also supports optional learner ID, course topics (one per line), training duration, completion date, Director, and Head of Department names. These details are printed on the certificate and shown on its admin and public verification records when provided. Existing databases are upgraded automatically the next time the application is opened; existing certificate records are preserved.
+
+## Student programs, branches, fees, and fleet
+
+On first sign-in, open **Courses** and set a duration (in days) for each program; add a default fee if desired. Enrollment then requires a program and branch and generates an admission number in the form `BKDS-{BRANCH}-{PROGRAM}-{YEAR}-{SEQUENCE}`. A student may use the course's default fee or an enrollment-specific amount. Existing imported student rows are preserved, but remain unassigned to a branch until they are re-enrolled with branch details.
+
+Use **Fees** to adjust a student's total fee and record cash, M-Pesa, Airtel Money, bank, or other payments with a reference. Payment balances are derived from the payment ledger. Automated M-Pesa/Airtel STK push is intentionally unavailable until provider credentials and callback URLs are configured; recording a mobile-money payment here does not send a prompt to a phone.
+
+Use **Fleet** to register vehicles at a branch, assign available vehicles to active students in the same branch, and return or update vehicles. The Director Dashboard summarizes student counts, fees, certificates, and fleet availability by branch.
+
+Mark a student complete only after their configured course duration has elapsed. Before awarding student certificates, set the Director's name and upload the Director's signature under **Branding**. Certificates generated for completed students retain the admission number, course, duration, and completion date and are linked back to the student.
 
 ## 4. Test verification locally
 

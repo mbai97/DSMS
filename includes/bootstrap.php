@@ -27,3 +27,6 @@ require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/auth.php';
 
 $db = db($config);
+
+require_once __DIR__ . '/migrations.php';
+run_database_migrations($db);

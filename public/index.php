@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
-// Require admin authentication to access this page
-require_admin();
-
 $number = is_string($_GET['number'] ?? null) ? trim($_GET['number']) : '';
 
 if ($number !== '') {

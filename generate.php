@@ -176,7 +176,12 @@ $signatureImg = static function (string $file) use ($config): string {
     if (!is_file($path)) {
         return '';
     }
-    $mime = strtolower(pathinfo($path, PATHINFO_EXTENSION)) === 'jpg' ? 'image/jpeg' : 'image/png';
+    $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+    $mime = match ($extension) {
+        'jpg', 'jpeg' => 'image/jpeg',
+        'gif' => 'image/gif',
+        default => 'image/png',
+    };
     return '<img src="data:' . $mime . ';base64,' . base64_encode((string)file_get_contents($path))
         . '" style="max-width:40mm; max-height:12mm;" alt="Signature">';
 };

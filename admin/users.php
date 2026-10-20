@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (strlen($password) < 8) {
             $errors[] = 'Password must be at least 8 characters.';
         }
-        if (!in_array($role, ['admin', 'manager', 'editor'], true)) {
+        if (!in_array($role, ['admin', 'director', 'manager', 'editor'], true)) {
             $role = 'admin';
         }
 
@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'update_role') {
         $id = (int)($_POST['user_id'] ?? 0);
         $role = trim((string)($_POST['role'] ?? 'admin'));
-        if (!in_array($role, ['admin', 'manager', 'editor'], true)) {
+        if (!in_array($role, ['admin', 'director', 'manager', 'editor'], true)) {
             $role = 'admin';
         }
         if ($id > 0 && $id !== (int)$_SESSION['admin_id']) {
@@ -118,6 +118,7 @@ require __DIR__ . '/../includes/header.php';
                 <label class="form-label">Role</label>
                 <select name="role" class="form-select" required>
                     <option value="admin">Admin</option>
+                    <option value="director">Director</option>
                     <option value="manager">Manager</option>
                     <option value="editor">Editor</option>
                 </select>
@@ -159,6 +160,7 @@ require __DIR__ . '/../includes/header.php';
                                         <input type="hidden" name="user_id" value="<?= (int)$user['id'] ?>">
                                         <select name="role" class="form-select form-select-sm" style="display:inline; width:auto;" onchange="this.form.submit();">
                                             <option value="admin" <?= $user['role'] === 'admin' ? 'selected' : '' ?>>Admin</option>
+                                            <option value="director" <?= $user['role'] === 'director' ? 'selected' : '' ?>>Director</option>
                                             <option value="manager" <?= $user['role'] === 'manager' ? 'selected' : '' ?>>Manager</option>
                                             <option value="editor" <?= $user['role'] === 'editor' ? 'selected' : '' ?>>Editor</option>
                                         </select>

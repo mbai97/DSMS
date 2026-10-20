@@ -26,8 +26,12 @@ $title = $title ?? $config['app_name'];
         </a>
         <?php if (admin_logged_in()): ?>
             <div class="d-flex align-items-center gap-2 app-nav-actions">
+                <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/dashboard.php')) ?>">Dashboard</a>
                 <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/certificates.php')) ?>">Certificates</a>
                 <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/students.php')) ?>">Students</a>
+                <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/courses.php')) ?>">Courses</a>
+                <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/fees.php')) ?>">Fees</a>
+                <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/fleet.php')) ?>">Fleet</a>
                 <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/branding.php')) ?>">Branding</a>
                 <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/users.php')) ?>">Users</a>
                 <a class="btn btn-sm btn-primary" href="<?= e(app_url($config, 'admin/create-certificate.php')) ?>">Issue Certificate</a>

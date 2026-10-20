@@ -12,6 +12,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $action = $_POST['action'] ?? '';
 
+    if ($action === 'update_director') {
+        $directorName = trim((string)($_POST['director_name'] ?? ''));
+        $directorTitle = trim((string)($_POST['director_title'] ?? ''));
+        if ($directorName === '' || mb_strlen($directorName) > 120) {
+            $errors[] = 'Enter the director name (120 characters or fewer).';
+        }
+        if ($directorTitle === '' || mb_strlen($directorTitle) > 80) {
+            $errors[] = 'Enter the director title (80 characters or fewer).';
+        }
+        if (!$errors) {
+            update_setting($db, 'director_name', $directorName);
+            update_setting($db, 'director_title', $directorTitle);
+            $success = 'Director details saved.';
+        }
+    }
+
     if ($action === 'update_colors') {
         $brandColor = trim((string)($_POST['brand_color'] ?? '#1ca7d9'));
         $accentColor = trim((string)($_POST['accent_color'] ?? '#d7265b'));
@@ -82,6 +98,8 @@ $accentColor = setting($db, 'accent_color', '#d7265b');
 $goldColor = setting($db, 'gold_color', '#d4af37');
 $signatureLabel = setting($db, 'signature_label', 'Authorized Signatory');
 $signatureFile = setting($db, 'signature_file', '');
+$directorName = setting($db, 'director_name', '');
+$directorTitle = setting($db, 'director_title', 'School Director');
 
 $title = 'Certificate Branding';
 require __DIR__ . '/../includes/header.php';
@@ -110,6 +128,17 @@ require __DIR__ . '/../includes/header.php';
 
 <div class="row">
     <div class="col-md-6">
+        <div class="card p-4 mb-4">
+            <h5 class="fw-bold mb-3">Director Details</h5>
+            <form method="post" class="row g-3">
+                <?= csrf_field() ?>
+                <input type="hidden" name="action" value="update_director">
+                <div class="col-md-6"><label class="form-label">Director Name</label><input class="form-control" name="director_name" maxlength="120" value="<?= e($directorName) ?>" required></div>
+                <div class="col-md-6"><label class="form-label">Director Title</label><input class="form-control" name="director_title" maxlength="80" value="<?= e($directorTitle) ?>" required></div>
+                <div class="col-12"><button class="btn btn-primary">Save Director Details</button></div>
+            </form>
+        </div>
+
         <div class="card p-4 mb-4">
             <h5 class="fw-bold mb-3">Certificate Colors</h5>
             <form method="post">

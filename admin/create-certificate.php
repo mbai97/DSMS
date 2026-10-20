@@ -7,6 +7,31 @@ require_admin();
 ensure_storage();
 
 $errors = [];
+$studentId = filter_var($_POST['student_id'] ?? $_GET['student_id'] ?? null, FILTER_VALIDATE_INT);
+$studentId = $studentId === false || $studentId === null || $studentId < 1 ? null : $studentId;
+$enrolledStudent = null;
+if ($studentId !== null) {
+    $stmt = $db->prepare(
+        'SELECT s.*, c.certificate_type
+         FROM students s LEFT JOIN courses c ON c.id = s.course_id WHERE s.id = ? LIMIT 1'
+    );
+    $stmt->execute([$studentId]);
+    $enrolledStudent = $stmt->fetch() ?: null;
+    if (!$enrolledStudent || $enrolledStudent['status'] !== 'completed') {
+        $errors[] = 'Certificates can only be awarded to students whose course is complete.';
+        $enrolledStudent = null;
+    } elseif (!empty($enrolledStudent['certificate_id'])) {
+        redirect('view-certificate.php?id=' . (int)$enrolledStudent['certificate_id']);
+    } else {
+        $_POST['holder_name'] = $enrolledStudent['holder_name'];
+        $_POST['learner_id'] = $enrolledStudent['admission_number'] ?: $enrolledStudent['learner_id'];
+        $_POST['course_name'] = $enrolledStudent['course_name'];
+        $_POST['completion_date'] = $enrolledStudent['completed_on'];
+        $_POST['training_duration'] = $enrolledStudent['course_duration_days'] . ' days';
+        $_POST['director_name'] = setting($db, 'director_name');
+        $_POST['certificate_type'] = $enrolledStudent['certificate_type'] ?: 'Certificate of Completion';
+    }
+}
 $certificateTypes = [
     'Certificate of Competence',
     'Defensive Driving',
@@ -42,6 +67,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $type = $selectedType === 'custom' ? $customType : $selectedType;
 
+    $signatureFile = setting($db, 'signature_file');
+    if ($studentId !== null && (
+        !$enrolledStudent
+        || setting($db, 'director_name') === ''
+        || $signatureFile === ''
+        || !is_file(__DIR__ . '/../storage/signatures/' . basename($signatureFile))
+    )) {
+        $errors[] = 'Configure the Director name and signature in Branding before awarding a student certificate.';
+    }
+
     if ($holder === '') $errors[] = 'Student/holder name is required.';
     if (mb_strlen($holder) > 190) $errors[] = 'Student/holder name must be 190 characters or fewer.';
     if (mb_strlen($learnerId) > 80) $errors[] = 'Learner ID must be 80 characters or fewer.';
@@ -76,38 +111,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = 'Certificate numbering is busy. Please try again.';
         } else {
             try {
-                $certificateNumber = next_certificate_number($db, $prefix);
-                $token = random_token();
+                $db->beginTransaction();
+                try {
+                    if ($studentId !== null) {
+                        $stmt = $db->prepare('SELECT status, certificate_id FROM students WHERE id = ? FOR UPDATE');
+                        $stmt->execute([$studentId]);
+                        $lockedStudent = $stmt->fetch();
+                        if (!$lockedStudent || $lockedStudent['status'] !== 'completed' || $lockedStudent['certificate_id']) {
+                            throw new RuntimeException('This student is no longer eligible for a new certificate.');
+                        }
+                    }
 
-                $stmt = $db->prepare(
-                    'INSERT INTO certificates
-                    (certificate_number, verification_token, holder_name, learner_id, certificate_type, course_name, course_topics, training_duration, issue_date, completion_date, expiry_date, director_name, created_by)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-                );
+                    $certificateNumber = next_certificate_number($db, $prefix);
+                    $token = random_token();
+                    $stmt = $db->prepare(
+                        'INSERT INTO certificates
+                        (certificate_number, verification_token, holder_name, learner_id, certificate_type, course_name, course_topics, training_duration, issue_date, completion_date, expiry_date, director_name, created_by)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                    );
+                    $stmt->execute([
+                        $certificateNumber,
+                        $token,
+                        $holder,
+                        $learnerId !== '' ? $learnerId : null,
+                        $type,
+                        $course,
+                        $courseTopics ? implode("\n", $courseTopics) : null,
+                        $trainingDuration !== '' ? $trainingDuration : null,
+                        $issueDate,
+                        $completionDate !== '' ? $completionDate : null,
+                        $expiryDate !== '' ? $expiryDate : null,
+                        $directorName !== '' ? $directorName : null,
+                        $_SESSION['admin_id'],
+                    ]);
 
-                $stmt->execute([
-                    $certificateNumber,
-                    $token,
-                    $holder,
-                    $learnerId !== '' ? $learnerId : null,
-                    $type,
-                    $course,
-                    $courseTopics ? implode("\n", $courseTopics) : null,
-                    $trainingDuration !== '' ? $trainingDuration : null,
-                    $issueDate,
-                    $completionDate !== '' ? $completionDate : null,
-                    $expiryDate !== '' ? $expiryDate : null,
-                    $directorName !== '' ? $directorName : null,
-                    $_SESSION['admin_id'],
-                ]);
-
-                $id = (int)$db->lastInsertId();
+                    $id = (int)$db->lastInsertId();
+                    if ($studentId !== null) {
+                        $stmt = $db->prepare('UPDATE students SET certificate_id = ? WHERE id = ?');
+                        $stmt->execute([$id, $studentId]);
+                    }
+                    $db->commit();
+                } catch (Throwable $exception) {
+                    if ($db->inTransaction()) {
+                        $db->rollBack();
+                    }
+                    if ($exception instanceof RuntimeException) {
+                        $errors[] = $exception->getMessage();
+                    } else {
+                        error_log('Certificate creation failed: ' . $exception->getMessage());
+                        $errors[] = 'Unable to create the certificate. Please try again.';
+                    }
+                }
             } finally {
                 $releaseLock = $db->prepare('SELECT RELEASE_LOCK(?)');
                 $releaseLock->execute([$lockName]);
             }
 
-            redirect('view-certificate.php?id=' . $id . '&generated=1');
+            if (!$errors) {
+                redirect('view-certificate.php?id=' . $id . '&generated=1');
+            }
         }
     }
 }
@@ -131,6 +193,7 @@ require __DIR__ . '/../includes/header.php';
         <div class="card p-4">
             <form method="post">
                 <?= csrf_field() ?>
+                <?php if ($studentId !== null): ?><input type="hidden" name="student_id" value="<?= (int)$studentId ?>"><?php endif; ?>
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Student / Holder Name</label>
                     <input class="form-control form-control-lg" name="holder_name" value="<?= e($holder) ?>" required>

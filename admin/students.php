@@ -8,6 +8,8 @@ $page_title = 'Student Enrollment';
 
 $errors = [];
 $success = '';
+$branches = $db->query('SELECT id, name FROM branches ORDER BY name')->fetchAll();
+$courses = $db->query('SELECT id, name, code, duration_days, default_fee FROM courses WHERE active = 1 ORDER BY name')->fetchAll();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
@@ -16,32 +18,95 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'add_student') {
         $holder = trim((string)($_POST['holder_name'] ?? ''));
-        $course = trim((string)($_POST['course_name'] ?? ''));
-        $learnerId = trim((string)($_POST['learner_id'] ?? ''));
+        $courseId = filter_var($_POST['course_id'] ?? null, FILTER_VALIDATE_INT);
+        $branchId = filter_var($_POST['branch_id'] ?? null, FILTER_VALIDATE_INT);
+        $feeInput = trim((string)($_POST['total_fee'] ?? ''));
 
         if ($holder === '') {
             $errors[] = 'Student name is required.';
         }
-        if ($course === '') {
-            $errors[] = 'Course name is required.';
+        if (mb_strlen($holder) > 190) {
+            $errors[] = 'Student name must be 190 characters or fewer.';
+        }
+        if ($courseId === false || $courseId === null) {
+            $errors[] = 'Select a program.';
+        }
+        if ($branchId === false || $branchId === null) {
+            $errors[] = 'Select a branch.';
         }
 
         if (!$errors) {
-            $stmt = $db->prepare('INSERT INTO students (learner_id, holder_name, course_name, enrollment_date, status) VALUES (?, ?, ?, ?, ?)');
-            $stmt->execute([
-                $learnerId !== '' ? $learnerId : null,
-                $holder,
-                $course,
-                date('Y-m-d'),
-                'active',
-            ]);
-            $success = 'Student enrolled successfully.';
+            $stmt = $db->prepare('SELECT * FROM courses WHERE id = ? AND active = 1');
+            $stmt->execute([$courseId]);
+            $course = $stmt->fetch();
+            $stmt = $db->prepare('SELECT id, code FROM branches WHERE id = ?');
+            $stmt->execute([$branchId]);
+            $branch = $stmt->fetch();
+            if (!$course || !$branch) {
+                $errors[] = 'Select an active course and valid branch.';
+            } elseif (!$course['duration_days']) {
+                $errors[] = 'Set this program duration in Course Settings before enrolling students.';
+            } elseif ($feeInput !== '' && (!is_numeric($feeInput) || (float)$feeInput < 0 || (float)$feeInput > 99999999.99)) {
+                $errors[] = 'Enter a valid non-negative course fee.';
+            } elseif ($feeInput === '' && $course['default_fee'] === null) {
+                $errors[] = 'Enter the student fee or set a default fee in Course Settings.';
+            } else {
+                $db->beginTransaction();
+                try {
+                    $admissionNumber = next_admission_number($db, (int)$branch['id'], $branch['code'], (int)$course['id'], $course['code']);
+                    $stmt = $db->prepare(
+                        'INSERT INTO students (learner_id, admission_number, holder_name, course_id, course_name, branch_id, course_duration_days, total_fee, enrollment_date, status)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), ?)'
+                    );
+                    $stmt->execute([
+                        $admissionNumber,
+                        $admissionNumber,
+                        $holder,
+                        $course['id'],
+                        $course['name'],
+                        $branch['id'],
+                        $course['duration_days'],
+                        number_format((float)($feeInput !== '' ? $feeInput : $course['default_fee']), 2, '.', ''),
+                        'active',
+                    ]);
+                    $db->commit();
+                    $success = 'Student enrolled. Admission number: ' . $admissionNumber;
+                } catch (Throwable $exception) {
+                    if ($db->inTransaction()) {
+                        $db->rollBack();
+                    }
+                    error_log('Student enrollment failed: ' . $exception->getMessage());
+                    $errors[] = 'Unable to enroll student. Please check the details and try again.';
+                }
+            }
+        }
+    }
+
+    if ($action === 'complete_student') {
+        $id = filter_var($_POST['student_id'] ?? null, FILTER_VALIDATE_INT);
+        if ($id === false || $id === null || $id < 1) {
+            $errors[] = 'Select a valid student.';
+        } else {
+            $stmt = $db->prepare('SELECT course_duration_days, enrollment_date, status FROM students WHERE id = ?');
+            $stmt->execute([$id]);
+            $student = $stmt->fetch();
+            if (!$student || !$student['course_duration_days']) {
+                $errors[] = 'This student does not have a configured course duration.';
+            } elseif ($student['status'] !== 'active') {
+                $errors[] = 'Only active students can be marked complete.';
+            } elseif (date('Y-m-d') < date('Y-m-d', strtotime($student['enrollment_date'] . ' +' . (int)$student['course_duration_days'] . ' days'))) {
+                $errors[] = 'The course duration has not elapsed yet.';
+            } else {
+                $stmt = $db->prepare("UPDATE students SET status = 'completed', completed_on = CURDATE() WHERE id = ?");
+                $stmt->execute([$id]);
+                $success = 'Student marked complete. Their certificate can now be issued.';
+            }
         }
     }
 
     if ($action === 'bulk_upload') {
         $file = $_FILES['csv_file'] ?? null;
-        if (!is_array($file) || $file['error'] !== UPLOAD_ERR_OK) {
+        if (!is_array($file) || $file['error'] !== UPLOAD_ERR_OK || (int)$file['size'] > 5242880) {
             $errors[] = 'Please upload a valid CSV file.';
         } else {
             $handle = fopen($file['tmp_name'], 'r');
@@ -53,34 +118,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($header === false) {
                     $errors[] = 'CSV file is empty.';
                 } else {
-                    while (($row = fgetcsv($handle)) !== false) {
-                        if (count($row) < 3) {
-                            continue;
+                    $header[0] = preg_replace('/^\xEF\xBB\xBF/', '', (string)$header[0]);
+                    $columns = array_flip(array_map(static fn($column): string => strtolower(trim((string)$column)), $header));
+                    $requiredColumns = ['student_name', 'course_name', 'branch_name'];
+                    if (array_diff($requiredColumns, array_keys($columns))) {
+                        $errors[] = 'CSV header must include student_name, course_name, and branch_name. total_fee is optional.';
+                    } else {
+                        $db->beginTransaction();
+                        try {
+                            $rowNumber = 1;
+                            $insert = $db->prepare(
+                                'INSERT INTO students (learner_id, admission_number, holder_name, course_id, course_name, branch_id, course_duration_days, total_fee, enrollment_date, status)
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), ?)'
+                            );
+                            while (($row = fgetcsv($handle)) !== false) {
+                                $rowNumber++;
+                                if (count($row) === 1 && trim((string)$row[0]) === '') {
+                                    continue;
+                                }
+                                $studentName = trim((string)($row[$columns['student_name']] ?? ''));
+                                $courseName = trim((string)($row[$columns['course_name']] ?? ''));
+                                $branchName = trim((string)($row[$columns['branch_name']] ?? ''));
+                                $feeInput = isset($columns['total_fee']) ? trim((string)($row[$columns['total_fee']] ?? '')) : '';
+                                if ($studentName === '' || mb_strlen($studentName) > 190 || $courseName === '' || $branchName === '') {
+                                    throw new RuntimeException('CSV row ' . $rowNumber . ' has a missing or invalid student, course, or branch.');
+                                }
+                                $stmt = $db->prepare('SELECT * FROM courses WHERE name = ? AND active = 1 LIMIT 1');
+                                $stmt->execute([$courseName]);
+                                $course = $stmt->fetch();
+                                $stmt = $db->prepare('SELECT id, code FROM branches WHERE name = ? LIMIT 1');
+                                $stmt->execute([$branchName]);
+                                $branch = $stmt->fetch();
+                                if (!$course || !$branch || !$course['duration_days']) {
+                                    throw new RuntimeException('CSV row ' . $rowNumber . ' uses an unknown branch/course or a course without a configured duration.');
+                                }
+                                if ($feeInput !== '' && (!is_numeric($feeInput) || (float)$feeInput < 0 || (float)$feeInput > 99999999.99)) {
+                                    throw new RuntimeException('CSV row ' . $rowNumber . ' has an invalid total_fee.');
+                                }
+                                if ($feeInput === '' && $course['default_fee'] === null) {
+                                    throw new RuntimeException('CSV row ' . $rowNumber . ' needs total_fee because the course has no default fee.');
+                                }
+                                $admissionNumber = next_admission_number($db, (int)$branch['id'], $branch['code'], (int)$course['id'], $course['code']);
+                                $insert->execute([
+                                    $admissionNumber,
+                                    $admissionNumber,
+                                    $studentName,
+                                    $course['id'],
+                                    $course['name'],
+                                    $branch['id'],
+                                    $course['duration_days'],
+                                    number_format((float)($feeInput !== '' ? $feeInput : $course['default_fee']), 2, '.', ''),
+                                    'active',
+                                ]);
+                                $count++;
+                            }
+                            if ($count === 0) {
+                                throw new RuntimeException('CSV contains no student rows.');
+                            }
+                            $db->commit();
+                            $success = $count . ' students enrolled from CSV.';
+                        } catch (Throwable $exception) {
+                            if ($db->inTransaction()) {
+                                $db->rollBack();
+                            }
+                            $errors[] = $exception instanceof RuntimeException ? $exception->getMessage() : 'Unable to import the student CSV.';
+                            if (!($exception instanceof RuntimeException)) {
+                                error_log('Student CSV import failed: ' . $exception->getMessage());
+                            }
                         }
-                        [$learnerId, $studentName, $courseName] = array_map('trim', [
-                            $row[0] ?? '',
-                            $row[1] ?? '',
-                            $row[2] ?? '',
-                        ]);
-
-                        if ($studentName === '' || $courseName === '') {
-                            continue;
-                        }
-
-                        $stmt = $db->prepare('INSERT INTO students (learner_id, holder_name, course_name, enrollment_date, status) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE holder_name = VALUES(holder_name), course_name = VALUES(course_name), updated_at = CURRENT_TIMESTAMP');
-                        $stmt->execute([
-                            $learnerId !== '' ? $learnerId : null,
-                            $studentName,
-                            $courseName,
-                            date('Y-m-d'),
-                            'active',
-                        ]);
-
-                        $count++;
                     }
                 }
                 fclose($handle);
-                $success = $count . ' students processed from CSV.';
             }
         }
     }
@@ -100,7 +208,16 @@ $perPage = 20;
 $offset = ($page - 1) * $perPage;
 
 $total = (int)$db->query('SELECT COUNT(*) FROM students')->fetchColumn();
-$stmt = $db->prepare('SELECT * FROM students ORDER BY enrollment_date DESC LIMIT ? OFFSET ?');
+$stmt = $db->prepare(
+    'SELECT s.*, b.name AS branch_name, c.name AS program_name,
+            DATE_ADD(s.enrollment_date, INTERVAL s.course_duration_days DAY) AS expected_completion,
+            COALESCE(p.paid, 0) AS amount_paid
+     FROM students s
+     LEFT JOIN branches b ON b.id = s.branch_id
+     LEFT JOIN courses c ON c.id = s.course_id
+     LEFT JOIN (SELECT student_id, SUM(amount) AS paid FROM student_payments GROUP BY student_id) p ON p.student_id = s.id
+     ORDER BY s.enrollment_date DESC LIMIT ? OFFSET ?'
+);
 $stmt->bindValue(1, $perPage, PDO::PARAM_INT);
 $stmt->bindValue(2, $offset, PDO::PARAM_INT);
 $stmt->execute();
@@ -146,20 +263,31 @@ require __DIR__ . '/../includes/header.php';
             <form method="post">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="add_student">
-                <div class="row">
+                <div class="row g-3">
                     <div class="col-md-6">
                         <label class="form-label">Student Name</label>
                         <input type="text" name="holder_name" class="form-control" required>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Learner ID</label>
-                        <input type="text" name="learner_id" class="form-control">
+                        <label class="form-label">Branch</label>
+                        <select name="branch_id" class="form-select" required>
+                            <option value="">Select branch</option>
+                            <?php foreach ($branches as $branch): ?><option value="<?= (int)$branch['id'] ?>"><?= e($branch['name']) ?></option><?php endforeach; ?>
+                        </select>
                     </div>
-                </div>
-                <div class="row mt-3">
-                    <div class="col-md-12">
-                        <label class="form-label">Course</label>
-                        <input type="text" name="course_name" class="form-control" required>
+                    <div class="col-md-6">
+                        <label class="form-label">Program</label>
+                        <select name="course_id" id="course-id" class="form-select" required>
+                            <option value="">Select program</option>
+                            <?php foreach ($courses as $course): ?>
+                                <option value="<?= (int)$course['id'] ?>" data-duration="<?= e($course['duration_days'] ?? '') ?>" data-fee="<?= e($course['default_fee'] ?? '') ?>"><?= e($course['name']) ?><?= $course['duration_days'] ? ' — ' . (int)$course['duration_days'] . ' days' : ' — configure duration first' ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="form-text" id="course-info">Program duration is configured under Course Settings.</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Total Fee (KES) <span class="text-muted fw-normal">optional if a course default is set</span></label>
+                        <input type="number" name="total_fee" id="student-fee" min="0" step="0.01" class="form-control" placeholder="Use course default">
                     </div>
                 </div>
                 <button class="btn btn-primary mt-3">Enroll Student</button>
@@ -174,9 +302,7 @@ require __DIR__ . '/../includes/header.php';
                     <label class="form-label">CSV file</label>
                     <input type="file" name="csv_file" class="form-control" accept=".csv" required>
                 </div>
-                <div class="form-text mb-3">
-                    Expected columns: learner_id, student_name, course_name
-                </div>
+                <div class="form-text mb-3">Required CSV columns: student_name, course_name, branch_name. Optional column: total_fee. Course names and branches must match the configured options; all rows receive generated admission numbers.</div>
                 <button class="btn btn-primary">Upload Students</button>
             </form>
         </div>
@@ -193,9 +319,10 @@ require __DIR__ . '/../includes/header.php';
             <thead>
                 <tr>
                     <th>Student Name</th>
-                    <th>Learner ID</th>
-                    <th>Course</th>
+                    <th>Admission</th>
+                    <th>Program / Branch</th>
                     <th>Enrollment Date</th>
+                    <th>Fee balance</th>
                     <th>Status</th>
                     <th>Actions</th>
                 </tr>
@@ -203,27 +330,29 @@ require __DIR__ . '/../includes/header.php';
             <tbody>
                 <?php if (!$students): ?>
                     <tr>
-                        <td colspan="6" class="text-center text-muted py-4">No students found.</td>
+                        <td colspan="7" class="text-center text-muted py-4">No students found.</td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($students as $student): ?>
                         <tr>
                             <td><?= e($student['holder_name']) ?></td>
-                            <td><?= e($student['learner_id'] ?? '') ?></td>
-                            <td><?= e($student['course_name']) ?></td>
+                            <td><?= e($student['admission_number'] ?? $student['learner_id'] ?? '—') ?></td>
+                            <td><?= e($student['program_name'] ?? $student['course_name']) ?><div class="small text-muted"><?= e($student['branch_name'] ?? 'Branch not assigned') ?></div></td>
                             <td><?= e($student['enrollment_date']) ?></td>
+                            <td>KES <?= number_format(max(0, (float)$student['total_fee'] - (float)$student['amount_paid']), 2) ?></td>
                             <td>
-                                <span class="badge text-bg-<?= $student['status'] === 'active' ? 'success' : 'secondary' ?>">
+                                <span class="badge text-bg-<?= $student['status'] === 'active' ? 'success' : ($student['status'] === 'completed' ? 'primary' : 'secondary') ?>">
                                     <?= e(strtoupper($student['status'])) ?>
                                 </span>
                             </td>
-                            <td>
-                                <form method="post" onsubmit="return confirm('Delete this student record?');">
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="action" value="delete_student">
-                                    <input type="hidden" name="student_id" value="<?= (int)$student['id'] ?>">
-                                    <button class="btn btn-sm btn-outline-danger">Delete</button>
-                                </form>
+                            <td class="d-flex gap-1 flex-wrap">
+                                <?php if ($student['status'] === 'active' && $student['course_duration_days'] && $student['expected_completion'] <= date('Y-m-d')): ?>
+                                    <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="complete_student"><input type="hidden" name="student_id" value="<?= (int)$student['id'] ?>"><button class="btn btn-sm btn-outline-success">Mark Complete</button></form>
+                                <?php elseif ($student['status'] === 'active' && $student['expected_completion']): ?>
+                                    <span class="small text-muted align-self-center">Completes <?= e($student['expected_completion']) ?></span>
+                                <?php endif; ?>
+                                <?php if ($student['status'] === 'completed' && empty($student['certificate_id'])): ?><a class="btn btn-sm btn-outline-primary" href="create-certificate.php?student_id=<?= (int)$student['id'] ?>">Award Certificate</a><?php elseif (!empty($student['certificate_id'])): ?><a class="btn btn-sm btn-outline-primary" href="view-certificate.php?id=<?= (int)$student['certificate_id'] ?>">View Certificate</a><?php endif; ?>
+                                <a class="btn btn-sm btn-outline-secondary" href="fees.php">Fees</a>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -244,5 +373,18 @@ require __DIR__ . '/../includes/header.php';
         </nav>
     <?php endif; ?>
 </div>
+
+<script>
+const courseSelect = document.getElementById('course-id');
+const feeInput = document.getElementById('student-fee');
+const courseInfo = document.getElementById('course-info');
+courseSelect.addEventListener('change', () => {
+    const option = courseSelect.selectedOptions[0];
+    feeInput.value = option.dataset.fee || '';
+    courseInfo.textContent = option.dataset.duration
+        ? `Course duration: ${option.dataset.duration} days. Expected completion is calculated from enrollment.`
+        : 'Set this program duration in Course Settings before enrolling students.';
+});
+</script>
 
 <?php require __DIR__ . '/../includes/footer.php'; ?>
