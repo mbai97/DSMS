@@ -54,9 +54,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $db->beginTransaction();
                 try {
                     $admissionNumber = next_admission_number($db, (int)$branch['id'], $branch['code'], (int)$course['id'], $course['code']);
+                    $phoneNumber = trim((string)($_POST['phone_number'] ?? ''));
+                    if (mb_strlen($phoneNumber) > 30) {
+                        throw new RuntimeException('Phone number must be 30 characters or fewer.');
+                    }
                     $stmt = $db->prepare(
-                        'INSERT INTO students (learner_id, admission_number, holder_name, course_id, course_name, branch_id, course_duration_days, total_fee, enrollment_date, status)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), ?)'
+                        'INSERT INTO students (learner_id, admission_number, holder_name, course_id, course_name, branch_id, course_duration_days, total_fee, phone_number, enrollment_date, status)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), ?)'
                     );
                     $stmt->execute([
                         $admissionNumber,
@@ -67,6 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $branch['id'],
                         $course['duration_days'],
                         number_format((float)($feeInput !== '' ? $feeInput : $course['default_fee']), 2, '.', ''),
+                        $phoneNumber !== '' ? $phoneNumber : null,
                         'active',
                     ]);
                     $db->commit();
@@ -128,8 +133,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         try {
                             $rowNumber = 1;
                             $insert = $db->prepare(
-                                'INSERT INTO students (learner_id, admission_number, holder_name, course_id, course_name, branch_id, course_duration_days, total_fee, enrollment_date, status)
-                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), ?)'
+                                'INSERT INTO students (learner_id, admission_number, holder_name, course_id, course_name, branch_id, course_duration_days, total_fee, phone_number, enrollment_date, status)
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), ?)'
                             );
                             while (($row = fgetcsv($handle)) !== false) {
                                 $rowNumber++;
@@ -140,6 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $courseName = trim((string)($row[$columns['course_name']] ?? ''));
                                 $branchName = trim((string)($row[$columns['branch_name']] ?? ''));
                                 $feeInput = isset($columns['total_fee']) ? trim((string)($row[$columns['total_fee']] ?? '')) : '';
+                                $phoneNumber = isset($columns['phone_number']) ? trim((string)($row[$columns['phone_number']] ?? '')) : '';
                                 if ($studentName === '' || mb_strlen($studentName) > 190 || $courseName === '' || $branchName === '') {
                                     throw new RuntimeException('CSV row ' . $rowNumber . ' has a missing or invalid student, course, or branch.');
                                 }
@@ -158,6 +164,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 if ($feeInput === '' && $course['default_fee'] === null) {
                                     throw new RuntimeException('CSV row ' . $rowNumber . ' needs total_fee because the course has no default fee.');
                                 }
+                                if (mb_strlen($phoneNumber) > 30) {
+                                    throw new RuntimeException('CSV row ' . $rowNumber . ' has an invalid phone number.');
+                                }
                                 $admissionNumber = next_admission_number($db, (int)$branch['id'], $branch['code'], (int)$course['id'], $course['code']);
                                 $insert->execute([
                                     $admissionNumber,
@@ -168,6 +177,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     $branch['id'],
                                     $course['duration_days'],
                                     number_format((float)($feeInput !== '' ? $feeInput : $course['default_fee']), 2, '.', ''),
+                                    $phoneNumber !== '' ? $phoneNumber : null,
                                     'active',
                                 ]);
                                 $count++;
@@ -289,6 +299,10 @@ require __DIR__ . '/../includes/header.php';
                         <label class="form-label">Total Fee (KES) <span class="text-muted fw-normal">optional if a course default is set</span></label>
                         <input type="number" name="total_fee" id="student-fee" min="0" step="0.01" class="form-control" placeholder="Use course default">
                     </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Student Phone <span class="text-muted fw-normal">(for WhatsApp payment requests)</span></label>
+                        <input type="tel" name="phone_number" maxlength="30" class="form-control" placeholder="e.g. 0712345678">
+                    </div>
                 </div>
                 <button class="btn btn-primary mt-3">Enroll Student</button>
             </form>
@@ -302,7 +316,7 @@ require __DIR__ . '/../includes/header.php';
                     <label class="form-label">CSV file</label>
                     <input type="file" name="csv_file" class="form-control" accept=".csv" required>
                 </div>
-                <div class="form-text mb-3">Required CSV columns: student_name, course_name, branch_name. Optional column: total_fee. Course names and branches must match the configured options; all rows receive generated admission numbers.</div>
+                <div class="form-text mb-3">Required CSV columns: student_name, course_name, branch_name. Optional columns: total_fee, phone_number. Course names and branches must match the configured options; all rows receive generated admission numbers.</div>
                 <button class="btn btn-primary">Upload Students</button>
             </form>
         </div>
@@ -351,6 +365,7 @@ require __DIR__ . '/../includes/header.php';
                                 <?php elseif ($student['status'] === 'active' && $student['expected_completion']): ?>
                                     <span class="small text-muted align-self-center">Completes <?= e($student['expected_completion']) ?></span>
                                 <?php endif; ?>
+                                <a class="btn btn-sm btn-outline-primary" href="admission-letter.php?id=<?= (int)$student['id'] ?>">Admission Letter</a>
                                 <?php if ($student['status'] === 'completed' && empty($student['certificate_id'])): ?><a class="btn btn-sm btn-outline-primary" href="create-certificate.php?student_id=<?= (int)$student['id'] ?>">Award Certificate</a><?php elseif (!empty($student['certificate_id'])): ?><a class="btn btn-sm btn-outline-primary" href="view-certificate.php?id=<?= (int)$student['certificate_id'] ?>">View Certificate</a><?php endif; ?>
                                 <a class="btn btn-sm btn-outline-secondary" href="fees.php">Fees</a>
                             </td>

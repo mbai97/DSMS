@@ -7,6 +7,7 @@ require_admin();
 
 $errors = [];
 $success = '';
+$receiptId = null;
 $branchId = filter_var($_GET['branch'] ?? null, FILTER_VALIDATE_INT);
 $branchFilter = $branchId && $branchId > 0 ? (int)$branchId : null;
 
@@ -17,6 +18,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($studentId === false || $studentId === null || $studentId < 1) {
         $errors[] = 'Select a valid student.';
+    } elseif ($action === 'update_contact') {
+        $phoneNumber = is_string($_POST['phone_number'] ?? null) ? trim($_POST['phone_number']) : '';
+        if (mb_strlen($phoneNumber) > 30) {
+            $errors[] = 'Phone number must be 30 characters or fewer.';
+        }
+        if (!$errors) {
+            $stmt = $db->prepare('UPDATE students SET phone_number = ? WHERE id = ?');
+            $stmt->execute([$phoneNumber !== '' ? $phoneNumber : null, $studentId]);
+            $success = 'Student contact details updated.';
+        }
     } elseif ($action === 'update_fee') {
         $totalFee = is_string($_POST['total_fee'] ?? null) ? trim($_POST['total_fee']) : '';
         if (!is_numeric($totalFee) || (float)$totalFee < 0 || (float)$totalFee > 99999999.99) {
@@ -91,6 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $notes !== '' ? $notes : null,
                     (int)$_SESSION['admin_id'],
                 ]);
+                $receiptId = (int)$db->lastInsertId();
                 $db->commit();
                 $success = 'Payment recorded successfully.';
             } catch (Throwable $exception) {
@@ -109,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $branches = $db->query('SELECT id, name FROM branches ORDER BY name')->fetchAll();
-$sql = 'SELECT s.id, s.admission_number, s.holder_name, s.course_name, s.total_fee, b.name AS branch_name,
+$sql = 'SELECT s.id, s.admission_number, s.holder_name, s.phone_number, s.course_name, s.total_fee, b.name AS branch_name,
                COALESCE(p.paid, 0) AS paid
         FROM students s
         LEFT JOIN branches b ON b.id = s.branch_id
@@ -121,7 +133,7 @@ $sql .= ' ORDER BY s.holder_name LIMIT 300';
 $stmt = $db->prepare($sql);
 $stmt->execute($branchFilter !== null ? [$branchFilter] : []);
 $students = $stmt->fetchAll();
-$paymentSql = 'SELECT p.amount, p.payment_method, p.reference, p.paid_at, s.holder_name, s.admission_number, b.name AS branch_name, a.name AS received_by
+$paymentSql = 'SELECT p.id, p.amount, p.payment_method, p.reference, p.paid_at, s.holder_name, s.admission_number, b.name AS branch_name, a.name AS received_by
                FROM student_payments p
                JOIN students s ON s.id = p.student_id
                LEFT JOIN branches b ON b.id = s.branch_id
@@ -148,8 +160,8 @@ require __DIR__ . '/../includes/header.php';
     </form>
 </div>
 <?php if ($errors): ?><div class="alert alert-danger"><ul class="mb-0"><?php foreach ($errors as $error): ?><li><?= e($error) ?></li><?php endforeach; ?></ul></div><?php endif; ?>
-<?php if ($success): ?><div class="alert alert-success"><?= e($success) ?></div><?php endif; ?>
-<div class="alert alert-info">M-Pesa and Airtel Money can be recorded manually here. Automated STK push is not configured because payment-provider credentials and callback URLs are not yet available.</div>
+<?php if ($success): ?><div class="alert alert-success"><?= e($success) ?><?php if ($receiptId): ?> <a class="alert-link" href="receipt.php?id=<?= $receiptId ?>" target="_blank">Print receipt</a><?php endif; ?></div><?php endif; ?>
+<div class="alert alert-info">You can open a prefilled WhatsApp payment reminder for a student with a valid Kenyan phone number; review it and press Send in WhatsApp. M-Pesa and Airtel Money are recorded manually. Automated STK push is not configured because provider credentials and callback URLs are not available.</div>
 <div class="card p-3">
     <div class="table-responsive"><table class="table align-middle">
         <thead><tr><th>Admission</th><th>Student / Branch</th><th>Program</th><th>Total fee</th><th>Paid</th><th>Balance</th><th>Actions</th></tr></thead>
@@ -165,6 +177,28 @@ require __DIR__ . '/../includes/header.php';
                 <td>
                     <details><summary class="btn btn-sm btn-outline-primary">Manage</summary>
                         <div class="border rounded p-3 mt-2" style="min-width:300px">
+                            <?php
+                            $phoneDigits = preg_replace('/\D+/', '', (string)($student['phone_number'] ?? ''));
+                            if (preg_match('/^0[17]\d{8}$/', $phoneDigits)) {
+                                $phoneDigits = '254' . substr($phoneDigits, 1);
+                            } elseif (preg_match('/^[17]\d{8}$/', $phoneDigits)) {
+                                $phoneDigits = '254' . $phoneDigits;
+                            }
+                            $whatsappReady = preg_match('/^254[17]\d{8}$/', $phoneDigits) === 1;
+                            $paymentMessage = sprintf(
+                                'Hello %s, your outstanding fee balance for %s at %s is KES %s. Kindly arrange payment via M-Pesa or Airtel Money and share the transaction reference with the school.',
+                                $student['holder_name'],
+                                $student['course_name'],
+                                $student['branch_name'] ?? 'BeckynDS',
+                                number_format($balance, 2)
+                            );
+                            ?>
+                            <?php if ($whatsappReady && $balance > 0): ?><a class="btn btn-sm btn-success w-100 mb-3" target="_blank" rel="noopener" href="https://wa.me/<?= e($phoneDigits) ?>?text=<?= rawurlencode($paymentMessage) ?>">Prepare WhatsApp payment prompt</a><?php elseif (empty($student['phone_number'])): ?><p class="small text-muted">Add the student's phone number at enrollment to prepare a WhatsApp payment reminder.</p><?php elseif ($balance > 0): ?><p class="small text-danger">Stored phone number is not a valid Kenyan mobile number.</p><?php endif; ?>
+                            <form method="post" class="mb-3">
+                                <?= csrf_field() ?><input type="hidden" name="action" value="update_contact"><input type="hidden" name="student_id" value="<?= (int)$student['id'] ?>">
+                                <label class="form-label">Student phone</label>
+                                <div class="input-group"><input type="tel" name="phone_number" maxlength="30" value="<?= e($student['phone_number'] ?? '') ?>" class="form-control" placeholder="0712345678"><button class="btn btn-outline-primary">Save phone</button></div>
+                            </form>
                             <form method="post" class="mb-3">
                                 <?= csrf_field() ?><input type="hidden" name="action" value="update_fee"><input type="hidden" name="student_id" value="<?= (int)$student['id'] ?>">
                                 <label class="form-label">Total course fee (KES)</label>
@@ -188,9 +222,9 @@ require __DIR__ . '/../includes/header.php';
     </table></div>
 </div>
 <div class="card p-3 mt-4"><h5 class="fw-bold mb-3">Recent Payments</h5><div class="table-responsive"><table class="table">
-    <thead><tr><th>Date</th><th>Student / Admission</th><th>Branch</th><th>Amount</th><th>Method</th><th>Reference</th><th>Received by</th></tr></thead>
+    <thead><tr><th>Date</th><th>Student / Admission</th><th>Branch</th><th>Amount</th><th>Method</th><th>Reference</th><th>Received by</th><th></th></tr></thead>
     <tbody><?php foreach ($payments as $payment): ?>
-        <tr><td><?= e($payment['paid_at']) ?></td><td><?= e($payment['holder_name']) ?><div class="small text-muted"><?= e($payment['admission_number'] ?? '') ?></div></td><td><?= e($payment['branch_name'] ?? '—') ?></td><td>KES <?= number_format((float)$payment['amount'], 2) ?></td><td><?= e(strtoupper(str_replace('_', ' ', $payment['payment_method']))) ?></td><td><?= e($payment['reference'] ?? '—') ?></td><td><?= e($payment['received_by'] ?? '—') ?></td></tr>
-    <?php endforeach; ?><?php if (!$payments): ?><tr><td colspan="7" class="text-center text-muted py-4">No payments recorded yet.</td></tr><?php endif; ?></tbody>
+        <tr><td><?= e($payment['paid_at']) ?></td><td><?= e($payment['holder_name']) ?><div class="small text-muted"><?= e($payment['admission_number'] ?? '') ?></div></td><td><?= e($payment['branch_name'] ?? '—') ?></td><td>KES <?= number_format((float)$payment['amount'], 2) ?></td><td><?= e(strtoupper(str_replace('_', ' ', $payment['payment_method']))) ?></td><td><?= e($payment['reference'] ?? '—') ?></td><td><?= e($payment['received_by'] ?? '—') ?></td><td><a class="btn btn-sm btn-outline-primary" href="receipt.php?id=<?= (int)$payment['id'] ?>" target="_blank">Receipt</a></td></tr>
+    <?php endforeach; ?><?php if (!$payments): ?><tr><td colspan="8" class="text-center text-muted py-4">No payments recorded yet.</td></tr><?php endif; ?></tbody>
 </table></div></div>
 <?php require __DIR__ . '/../includes/footer.php'; ?>

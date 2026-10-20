@@ -11,11 +11,10 @@ function run_database_migrations(PDO $db): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
     $version = $db->prepare('SELECT 1 FROM app_migrations WHERE version = ? LIMIT 1');
-    $version->execute(['student-fees-fleet-20261020']);
+    $version->execute(['student-fees-fleet-contact-20261020']);
     if ($version->fetchColumn()) {
         return;
     }
-
     $db->exec(
         "CREATE TABLE IF NOT EXISTS branches (
             id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -66,6 +65,7 @@ function run_database_migrations(PDO $db): void
         'total_fee' => 'DECIMAL(10,2) NOT NULL DEFAULT 0.00',
         'completed_on' => 'DATE NULL',
         'certificate_id' => 'BIGINT UNSIGNED NULL',
+        'phone_number' => 'VARCHAR(30) NULL',
     ];
     foreach ($columns as $column => $definition) {
         $stmt = $db->prepare(
@@ -157,6 +157,6 @@ function run_database_migrations(PDO $db): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
 
-    $stmt = $db->prepare('INSERT INTO app_migrations (version) VALUES (?)');
-    $stmt->execute(['student-fees-fleet-20261020']);
+    $stmt = $db->prepare('INSERT IGNORE INTO app_migrations (version) VALUES (?)');
+    $stmt->execute(['student-fees-fleet-contact-20261020']);
 }

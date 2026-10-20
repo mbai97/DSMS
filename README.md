@@ -21,6 +21,8 @@ A lightweight PHP/MySQL certificate issuing and QR verification system designed 
 - Vehicle fleet tracking and student assignments by branch
 - Director dashboard for branch enrollment, fee, fleet, and certificate summaries
 - Director-signed certificates awarded after the configured course duration
+- Printable student admission letters and payment receipts
+- Public school landing page with program, branch, and certificate verification links
 - Bootstrap 5 responsive interface
 - GitHub Actions deployment to shared hosting over FTP/FTPS
 - No Node.js, Docker, VPS, FastAPI, or Next.js required
@@ -128,6 +130,8 @@ The issue form also supports optional learner ID, course topics (one per line), 
 On first sign-in, open **Courses** and set a duration (in days) for each program; add a default fee if desired. Enrollment then requires a program and branch and generates an admission number in the form `BKDS-{BRANCH}-{PROGRAM}-{YEAR}-{SEQUENCE}`. A student may use the course's default fee or an enrollment-specific amount. Existing imported student rows are preserved, but remain unassigned to a branch until they are re-enrolled with branch details.
 
 Use **Fees** to adjust a student's total fee and record cash, M-Pesa, Airtel Money, bank, or other payments with a reference. Payment balances are derived from the payment ledger. Automated M-Pesa/Airtel STK push is intentionally unavailable until provider credentials and callback URLs are configured; recording a mobile-money payment here does not send a prompt to a phone.
+
+When a student has a Kenyan mobile number on file, **Fees** can open a prefilled WhatsApp payment reminder. An admin must review and send the message. Each recorded payment can be printed as a receipt, and each student has a printable admission letter from **Students**.
 
 Use **Fleet** to register vehicles at a branch, assign available vehicles to active students in the same branch, and return or update vehicles. The Director Dashboard summarizes student counts, fees, certificates, and fleet availability by branch.
 

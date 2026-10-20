@@ -12,7 +12,7 @@ if (preg_match('#^/c/([A-Za-z0-9]+)$#', $path, $m)) {
 }
 
 if ($path === '/' || $path === '/index.php') {
-    require __DIR__ . '/index.php';
+    require __DIR__ . '/home.php';
     return true;
 }
 

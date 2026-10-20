@@ -16,5 +16,5 @@ RewriteRule ^public/.*\.php$ - [L]
 # Public certificate verification route.
 RewriteRule ^c/([A-Za-z0-9]{64})/?$ public/c.php?token=$1 [L,QSA]
 
-# Root verification page.
-RewriteRule ^$ public/index.php [L]
+# Public home page.
+RewriteRule ^$ public/home.php [L]

@@ -6,6 +6,9 @@ require_admin();
 
 $errors = [];
 $success = '';
+$formName = '';
+$formEmail = '';
+$formRole = 'admin';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
@@ -13,33 +16,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'create_user') {
-        $name = trim((string)($_POST['name'] ?? ''));
-        $email = strtolower(trim((string)($_POST['email'] ?? '')));
-        $password = (string)($_POST['password'] ?? '');
-        $role = trim((string)($_POST['role'] ?? 'admin'));
+        $name = is_string($_POST['name'] ?? null) ? trim($_POST['name']) : '';
+        $email = is_string($_POST['email'] ?? null) ? strtolower(trim($_POST['email'])) : '';
+        $password = is_string($_POST['password'] ?? null) ? $_POST['password'] : '';
+        $role = is_string($_POST['role'] ?? null) ? trim($_POST['role']) : '';
+        $formName = $name;
+        $formEmail = $email;
+        $formRole = $role;
 
-        if ($name === '') {
-            $errors[] = 'Name is required.';
+        if ($name === '' || mb_strlen($name) > 120) {
+            $errors[] = 'Name is required and must be 120 characters or fewer.';
         }
-        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $errors[] = 'Valid email is required.';
+        if ($email === '' || mb_strlen($email) > 190 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors[] = 'Enter a valid email address of 190 characters or fewer.';
         }
-        if (strlen($password) < 8) {
-            $errors[] = 'Password must be at least 8 characters.';
+        if (strlen($password) < 8 || strlen($password) > 4096) {
+            $errors[] = 'Password must be between 8 and 4,096 characters.';
         }
         if (!in_array($role, ['admin', 'director', 'manager', 'editor'], true)) {
-            $role = 'admin';
+            $errors[] = 'Select a valid role.';
         }
 
         if (!$errors) {
-            $stmt = $db->prepare('SELECT id FROM admins WHERE email = ? LIMIT 1');
-            $stmt->execute([$email]);
-            if ($stmt->fetchColumn()) {
-                $errors[] = 'An admin with this email already exists.';
-            } else {
+            try {
                 $stmt = $db->prepare('INSERT INTO admins (name, email, password_hash, role) VALUES (?, ?, ?, ?)');
-                $stmt->execute([$name, $email, password_hash($password), $role]);
+                $stmt->execute([$name, $email, password_hash($password, PASSWORD_DEFAULT), $role]);
                 $success = 'User created successfully.';
+                $formName = '';
+                $formEmail = '';
+                $formRole = 'admin';
+            } catch (PDOException $exception) {
+                if ($exception->getCode() === '23000') {
+                    $errors[] = 'An admin with this email already exists.';
+                } else {
+                    error_log('Admin user creation failed: ' . $exception->getMessage());
+                    $errors[] = 'Unable to create the user. Please try again.';
+                }
             }
         }
     }
@@ -102,25 +114,25 @@ require __DIR__ . '/../includes/header.php';
         <div class="row">
             <div class="col-md-6">
                 <label class="form-label">Name</label>
-                <input type="text" name="name" class="form-control" required>
+                <input type="text" name="name" maxlength="120" class="form-control" value="<?= e($formName) ?>" required>
             </div>
             <div class="col-md-6">
                 <label class="form-label">Email</label>
-                <input type="email" name="email" class="form-control" required>
+                <input type="email" name="email" maxlength="190" class="form-control" value="<?= e($formEmail) ?>" required>
             </div>
         </div>
         <div class="row mt-3">
             <div class="col-md-6">
                 <label class="form-label">Password</label>
-                <input type="password" name="password" class="form-control" required>
+                <input type="password" name="password" minlength="8" maxlength="4096" class="form-control" required autocomplete="new-password">
             </div>
             <div class="col-md-6">
                 <label class="form-label">Role</label>
                 <select name="role" class="form-select" required>
-                    <option value="admin">Admin</option>
-                    <option value="director">Director</option>
-                    <option value="manager">Manager</option>
-                    <option value="editor">Editor</option>
+                    <option value="admin" <?= $formRole === 'admin' ? 'selected' : '' ?>>Admin</option>
+                    <option value="director" <?= $formRole === 'director' ? 'selected' : '' ?>>Director</option>
+                    <option value="manager" <?= $formRole === 'manager' ? 'selected' : '' ?>>Manager</option>
+                    <option value="editor" <?= $formRole === 'editor' ? 'selected' : '' ?>>Editor</option>
                 </select>
             </div>
         </div>

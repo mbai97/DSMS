@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS students (
     branch_id INT UNSIGNED NULL,
     course_duration_days SMALLINT UNSIGNED NULL,
     total_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    phone_number VARCHAR(30) NULL,
     completed_on DATE NULL,
     certificate_id BIGINT UNSIGNED NULL UNIQUE,
     enrollment_date DATE NOT NULL,
