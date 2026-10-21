@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_admin();
+require_roles('admin');
 
 $errors = [];
 $success = '';

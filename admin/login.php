@@ -34,9 +34,9 @@ require __DIR__ . '/../includes/header.php';
 <div class="row justify-content-center">
     <div class="col-md-5">
         <div class="card p-4 portal-login-card">
-            <div class="portal-eyebrow">BeckynDS Admin Panel</div>
-            <h2 class="fw-bold mb-1">Admin Login</h2>
-            <p class="text-muted">Manage all administrative functions.</p>
+            <div class="portal-eyebrow">BeckynDS Staff Portal</div>
+            <h2 class="fw-bold mb-1">Sign in</h2>
+            <p class="text-muted">Access the tools available to your role.</p>
 
             <?php if ($error): ?>
                 <div class="alert alert-danger"><?= e($error) ?></div>

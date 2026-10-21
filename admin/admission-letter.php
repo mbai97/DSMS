@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_admin();
+require_roles('admin', 'manager', 'branch');
 
 $id = filter_var($_GET['id'] ?? null, FILTER_VALIDATE_INT);
 if ($id === false || $id === null || $id < 1) {
@@ -26,6 +26,7 @@ if (!$student) {
     http_response_code(404);
     exit('Student record not found.');
 }
+require_branch_record($student['branch_id'] === null ? null : (int)$student['branch_id']);
 
 $directorName = setting($db, 'director_name');
 $directorTitle = setting($db, 'director_title', 'School Director');

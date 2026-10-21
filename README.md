@@ -5,6 +5,7 @@ A lightweight PHP/MySQL certificate issuing and QR verification system designed 
 ## What it does
 
 - Admin login
+- Role-based staff access: Admin, Manager (read-only), and Branch (assigned-branch management)
 - Issue certificates
 - Generate a unique certificate number
 - Generate a cryptographically random verification token
@@ -28,6 +29,8 @@ A lightweight PHP/MySQL certificate issuing and QR verification system designed 
 - No Node.js, Docker, VPS, FastAPI, or Next.js required
 
 ## Important architecture
+
+Administrators assign roles and (for Branch users) a branch under User Management. Admins have full access, Managers can view records across branches, and Branch users can manage records only for their assigned branch.
 
 The QR code contains only a URL such as:
 

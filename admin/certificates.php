@@ -3,17 +3,33 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_admin();
+require_roles('admin', 'manager', 'branch');
 
 $q = is_string($_GET['q'] ?? null) ? trim($_GET['q']) : '';
+$branchRole = is_role('branch');
 
 if ($q !== '') {
-    $stmt = $db->prepare('SELECT * FROM certificates WHERE certificate_number LIKE ? OR holder_name LIKE ? OR certificate_type LIKE ? OR course_name LIKE ? ORDER BY id DESC LIMIT 100');
+    $sql = 'SELECT c.* FROM certificates c';
+    if ($branchRole) {
+        $sql .= ' JOIN students s ON s.certificate_id = c.id WHERE s.branch_id = ? AND';
+    } else {
+        $sql .= ' WHERE';
+    }
+    $sql .= ' (c.certificate_number LIKE ? OR c.holder_name LIKE ? OR c.certificate_type LIKE ? OR c.course_name LIKE ?) ORDER BY c.id DESC LIMIT 100';
+    $stmt = $db->prepare($sql);
     $like = '%' . $q . '%';
-    $stmt->execute([$like, $like, $like, $like]);
+    $stmt->execute($branchRole
+        ? [current_admin_branch_id(), $like, $like, $like, $like]
+        : [$like, $like, $like, $like]);
     $certificates = $stmt->fetchAll();
 } else {
-    $certificates = $db->query('SELECT * FROM certificates ORDER BY id DESC LIMIT 100')->fetchAll();
+    if ($branchRole) {
+        $stmt = $db->prepare('SELECT c.* FROM certificates c JOIN students s ON s.certificate_id = c.id WHERE s.branch_id = ? ORDER BY c.id DESC LIMIT 100');
+        $stmt->execute([current_admin_branch_id()]);
+        $certificates = $stmt->fetchAll();
+    } else {
+        $certificates = $db->query('SELECT * FROM certificates ORDER BY id DESC LIMIT 100')->fetchAll();
+    }
 }
 
 $title = 'Certificates';
@@ -24,7 +40,7 @@ require __DIR__ . '/../includes/header.php';
         <h1 class="fw-bold">Certificates</h1>
         <p class="text-muted mb-0">Search and manage issued certificates.</p>
     </div>
-    <a class="btn btn-primary" href="create-certificate.php">+ Issue Certificate</a>
+    <?php if (is_role('admin')): ?><a class="btn btn-primary" href="create-certificate.php">+ Issue Certificate</a><?php endif; ?>
 </div>
 
 <div class="card p-3">

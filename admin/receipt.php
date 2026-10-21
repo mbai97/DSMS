@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_admin();
+require_roles('admin', 'manager', 'branch');
 
 $id = filter_var($_GET['id'] ?? null, FILTER_VALIDATE_INT);
 if ($id === false || $id === null || $id < 1) {
@@ -12,7 +12,7 @@ if ($id === false || $id === null || $id < 1) {
 }
 
 $stmt = $db->prepare(
-    'SELECT p.*, s.holder_name, s.admission_number, s.course_name, s.total_fee,
+    'SELECT p.*, s.holder_name, s.admission_number, s.course_name, s.total_fee, s.branch_id,
             b.name AS branch_name, a.name AS received_by,
             (SELECT COALESCE(SUM(p2.amount), 0) FROM student_payments p2 WHERE p2.student_id = s.id) AS total_paid
      FROM student_payments p
@@ -23,6 +23,9 @@ $stmt = $db->prepare(
 );
 $stmt->execute([$id]);
 $payment = $stmt->fetch();
+if ($payment) {
+    require_branch_record($payment['branch_id'] === null ? null : (int)$payment['branch_id']);
+}
 if (!$payment) {
     http_response_code(404);
     exit('Payment receipt not found.');

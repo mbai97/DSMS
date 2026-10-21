@@ -2,13 +2,15 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_admin();
+require_roles('admin');
 
 $errors = [];
 $success = '';
 $formName = '';
 $formEmail = '';
 $formRole = 'admin';
+$formBranchId = '';
+$branches = $db->query('SELECT id, name FROM branches ORDER BY name')->fetchAll();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
@@ -20,9 +22,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email = is_string($_POST['email'] ?? null) ? strtolower(trim($_POST['email'])) : '';
         $password = is_string($_POST['password'] ?? null) ? $_POST['password'] : '';
         $role = is_string($_POST['role'] ?? null) ? trim($_POST['role']) : '';
+        $branchId = filter_var($_POST['branch_id'] ?? null, FILTER_VALIDATE_INT);
         $formName = $name;
         $formEmail = $email;
         $formRole = $role;
+        $formBranchId = is_string($_POST['branch_id'] ?? null) ? $_POST['branch_id'] : '';
 
         if ($name === '' || mb_strlen($name) > 120) {
             $errors[] = 'Name is required and must be 120 characters or fewer.';
@@ -33,18 +37,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (strlen($password) < 8 || strlen($password) > 4096) {
             $errors[] = 'Password must be between 8 and 4,096 characters.';
         }
-        if (!in_array($role, ['admin', 'director', 'manager', 'editor'], true)) {
+        if (!in_array($role, ['admin', 'manager', 'branch'], true)) {
             $errors[] = 'Select a valid role.';
+        }
+        if ($role === 'branch' && ($branchId === false || $branchId === null || $branchId < 1)) {
+            $errors[] = 'Select a branch for this user.';
+        }
+        if ($role !== 'branch') {
+            $branchId = null;
+        } elseif (!$errors) {
+            $stmt = $db->prepare('SELECT COUNT(*) FROM branches WHERE id = ?');
+            $stmt->execute([$branchId]);
+            if ((int)$stmt->fetchColumn() !== 1) {
+                $errors[] = 'Select a valid branch.';
+            }
         }
 
         if (!$errors) {
             try {
-                $stmt = $db->prepare('INSERT INTO admins (name, email, password_hash, role) VALUES (?, ?, ?, ?)');
-                $stmt->execute([$name, $email, password_hash($password, PASSWORD_DEFAULT), $role]);
+                $stmt = $db->prepare('INSERT INTO admins (name, email, password_hash, role, branch_id) VALUES (?, ?, ?, ?, ?)');
+                $stmt->execute([$name, $email, password_hash($password, PASSWORD_DEFAULT), $role, $branchId]);
                 $success = 'User created successfully.';
                 $formName = '';
                 $formEmail = '';
                 $formRole = 'admin';
+                $formBranchId = '';
             } catch (PDOException $exception) {
                 if ($exception->getCode() === '23000') {
                     $errors[] = 'An admin with this email already exists.';
@@ -67,19 +84,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'update_role') {
         $id = (int)($_POST['user_id'] ?? 0);
-        $role = trim((string)($_POST['role'] ?? 'admin'));
-        if (!in_array($role, ['admin', 'director', 'manager', 'editor'], true)) {
-            $role = 'admin';
+        $role = is_string($_POST['role'] ?? null) ? trim($_POST['role']) : '';
+        $branchId = filter_var($_POST['branch_id'] ?? null, FILTER_VALIDATE_INT);
+        if (!in_array($role, ['admin', 'manager', 'branch'], true)) {
+            $errors[] = 'Select a valid role.';
+        } elseif ($role === 'branch' && ($branchId === false || $branchId === null || $branchId < 1)) {
+            $errors[] = 'Select a branch for this user.';
+        } elseif ($role === 'branch') {
+            $stmt = $db->prepare('SELECT COUNT(*) FROM branches WHERE id = ?');
+            $stmt->execute([$branchId]);
+            if ((int)$stmt->fetchColumn() !== 1) {
+                $errors[] = 'Select a valid branch.';
+            }
+        } else {
+            $branchId = null;
         }
         if ($id > 0 && $id !== (int)$_SESSION['admin_id']) {
-            $stmt = $db->prepare('UPDATE admins SET role = ? WHERE id = ?');
-            $stmt->execute([$role, $id]);
-            $success = 'User role updated.';
+            if (!$errors) {
+                $stmt = $db->prepare('UPDATE admins SET role = ?, branch_id = ? WHERE id = ?');
+                $stmt->execute([$role, $branchId, $id]);
+                $success = 'User role and branch updated.';
+            }
         }
     }
 }
 
-$users = $db->query('SELECT id, name, email, role FROM admins ORDER BY id DESC')->fetchAll();
+$users = $db->query('SELECT a.id, a.name, a.email, a.role, a.branch_id, b.name AS branch_name FROM admins a LEFT JOIN branches b ON b.id = a.branch_id ORDER BY a.id DESC')->fetchAll();
 
 $title = 'User Management';
 require __DIR__ . '/../includes/header.php';
@@ -130,9 +160,15 @@ require __DIR__ . '/../includes/header.php';
                 <label class="form-label">Role</label>
                 <select name="role" class="form-select" required>
                     <option value="admin" <?= $formRole === 'admin' ? 'selected' : '' ?>>Admin</option>
-                    <option value="director" <?= $formRole === 'director' ? 'selected' : '' ?>>Director</option>
-                    <option value="manager" <?= $formRole === 'manager' ? 'selected' : '' ?>>Manager</option>
-                    <option value="editor" <?= $formRole === 'editor' ? 'selected' : '' ?>>Editor</option>
+                    <option value="manager" <?= $formRole === 'manager' ? 'selected' : '' ?>>Manager (read-only)</option>
+                    <option value="branch" <?= $formRole === 'branch' ? 'selected' : '' ?>>Branch</option>
+                </select>
+            </div>
+            <div class="col-md-6 mt-3">
+                <label class="form-label">Assigned Branch <span class="text-muted fw-normal">(required for Branch role)</span></label>
+                <select name="branch_id" class="form-select">
+                    <option value="">No branch</option>
+                    <?php foreach ($branches as $branch): ?><option value="<?= (int)$branch['id'] ?>" <?= $formBranchId === (string)$branch['id'] ? 'selected' : '' ?>><?= e($branch['name']) ?></option><?php endforeach; ?>
                 </select>
             </div>
         </div>
@@ -149,13 +185,14 @@ require __DIR__ . '/../includes/header.php';
                     <th>Name</th>
                     <th>Email</th>
                     <th>Role</th>
+                    <th>Branch</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (!$users): ?>
                     <tr>
-                        <td colspan="4" class="text-center text-muted py-4">No users found.</td>
+                        <td colspan="5" class="text-center text-muted py-4">No users found.</td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($users as $user): ?>
@@ -170,15 +207,20 @@ require __DIR__ . '/../includes/header.php';
                                         <?= csrf_field() ?>
                                         <input type="hidden" name="action" value="update_role">
                                         <input type="hidden" name="user_id" value="<?= (int)$user['id'] ?>">
-                                        <select name="role" class="form-select form-select-sm" style="display:inline; width:auto;" onchange="this.form.submit();">
+                                        <select name="role" class="form-select form-select-sm" style="display:inline; width:auto;">
                                             <option value="admin" <?= $user['role'] === 'admin' ? 'selected' : '' ?>>Admin</option>
-                                            <option value="director" <?= $user['role'] === 'director' ? 'selected' : '' ?>>Director</option>
                                             <option value="manager" <?= $user['role'] === 'manager' ? 'selected' : '' ?>>Manager</option>
-                                            <option value="editor" <?= $user['role'] === 'editor' ? 'selected' : '' ?>>Editor</option>
+                                            <option value="branch" <?= $user['role'] === 'branch' ? 'selected' : '' ?>>Branch</option>
                                         </select>
+                                        <select name="branch_id" class="form-select form-select-sm mt-1" style="width:auto;">
+                                            <option value="">No branch</option>
+                                            <?php foreach ($branches as $branch): ?><option value="<?= (int)$branch['id'] ?>" <?= (int)$user['branch_id'] === (int)$branch['id'] ? 'selected' : '' ?>><?= e($branch['name']) ?></option><?php endforeach; ?>
+                                        </select>
+                                        <button class="btn btn-sm btn-outline-primary mt-1">Save role</button>
                                     </form>
                                 <?php endif; ?>
                             </td>
+                            <td><?= e($user['branch_name'] ?? '—') ?></td>
                             <td>
                                 <?php if ((int)$user['id'] !== (int)$_SESSION['admin_id']): ?>
                                     <form method="post" onsubmit="return confirm('Delete this user?');" style="display:inline;">

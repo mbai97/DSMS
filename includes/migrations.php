@@ -11,7 +11,7 @@ function run_database_migrations(PDO $db): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
     $version = $db->prepare('SELECT 1 FROM app_migrations WHERE version = ? LIMIT 1');
-    $version->execute(['student-contact-details-20261021']);
+    $version->execute(['role-branch-access-20261021']);
     if ($version->fetchColumn()) {
         return;
     }
@@ -81,6 +81,20 @@ function run_database_migrations(PDO $db): void
             $db->exec('ALTER TABLE students ADD COLUMN `' . $column . '` ' . $definition);
         }
     }
+    $stmt = $db->prepare(
+        'SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?'
+    );
+    $stmt->execute(['admins', 'branch_id']);
+    if ((int)$stmt->fetchColumn() === 0) {
+        $db->exec('ALTER TABLE admins ADD COLUMN branch_id INT UNSIGNED NULL');
+    }
+    $index = $db->query(
+        "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'admins' AND index_name = 'idx_admin_branch'"
+    );
+    if ((int)$index->fetchColumn() === 0) {
+        $db->exec('CREATE INDEX idx_admin_branch ON admins (branch_id)');
+    }
+    $db->exec("UPDATE admins SET role = 'manager' WHERE role IN ('director', 'editor')");
     $index = $db->query(
         "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'students' AND column_name = 'admission_number' AND non_unique = 0"
     );
@@ -163,5 +177,5 @@ function run_database_migrations(PDO $db): void
     );
 
     $stmt = $db->prepare('INSERT IGNORE INTO app_migrations (version) VALUES (?)');
-    $stmt->execute(['student-contact-details-20261021']);
+    $stmt->execute(['role-branch-access-20261021']);
 }

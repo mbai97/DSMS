@@ -89,10 +89,89 @@ function admin_logged_in(): bool
     return isset($_SESSION['admin_id']) && is_int($_SESSION['admin_id']) && $_SESSION['admin_id'] > 0;
 }
 
+function current_admin(): ?array
+{
+    static $admin = false;
+    if ($admin !== false) {
+        return $admin;
+    }
+    if (!admin_logged_in()) {
+        return $admin = null;
+    }
+
+    $db = $GLOBALS['db'] ?? null;
+    if (!$db instanceof PDO) {
+        return $admin = null;
+    }
+    $stmt = $db->prepare('SELECT id, name, email, role, branch_id FROM admins WHERE id = ? LIMIT 1');
+    $stmt->execute([$_SESSION['admin_id']]);
+    $row = $stmt->fetch();
+    if (!is_array($row)) {
+        unset($_SESSION['admin_id'], $_SESSION['admin_email']);
+        return $admin = null;
+    }
+    return $admin = $row;
+}
+
+function current_admin_role(): string
+{
+    return (string)(current_admin()['role'] ?? '');
+}
+
+function current_admin_branch_id(): ?int
+{
+    $branchId = current_admin()['branch_id'] ?? null;
+    return $branchId === null ? null : (int)$branchId;
+}
+
+function is_role(string $role): bool
+{
+    return current_admin_role() === $role;
+}
+
+function require_roles(string ...$roles): void
+{
+    require_admin();
+    if (!in_array(current_admin_role(), $roles, true)) {
+        http_response_code(403);
+        exit('You do not have permission to access this page.');
+    }
+}
+
+function require_branch_record(?int $branchId): void
+{
+    if (is_role('branch') && ($branchId === null || $branchId !== current_admin_branch_id())) {
+        http_response_code(404);
+        exit('Record not found.');
+    }
+}
+
+function require_student_branch(PDO $db, int $studentId): void
+{
+    if (!is_role('branch')) {
+        return;
+    }
+    $stmt = $db->prepare('SELECT branch_id FROM students WHERE id = ? LIMIT 1');
+    $stmt->execute([$studentId]);
+    $branchId = $stmt->fetchColumn();
+    require_branch_record($branchId === false || $branchId === null ? null : (int)$branchId);
+}
+
 function require_admin(): void
 {
     if (!admin_logged_in()) {
         redirect(app_url($GLOBALS['config'], 'admin/login.php'));
+    }
+    if (current_admin() === null) {
+        redirect(app_url($GLOBALS['config'], 'admin/login.php'));
+    }
+    if (is_role('branch') && current_admin_branch_id() === null) {
+        http_response_code(403);
+        exit('This Branch account has no assigned branch. Ask an administrator to assign one.');
+    }
+    if (is_role('manager') && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+        http_response_code(403);
+        exit('Manager accounts have read-only access.');
     }
 }
 

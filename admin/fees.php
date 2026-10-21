@@ -3,13 +3,18 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_admin();
+require_roles('admin', 'manager', 'branch');
 
 $errors = [];
 $success = '';
 $receiptId = null;
+$branchRole = is_role('branch');
+$assignedBranchId = current_admin_branch_id();
 $branchId = filter_var($_GET['branch'] ?? null, FILTER_VALIDATE_INT);
 $branchFilter = $branchId && $branchId > 0 ? (int)$branchId : null;
+if ($branchRole) {
+    $branchFilter = $assignedBranchId;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
@@ -18,7 +23,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($studentId === false || $studentId === null || $studentId < 1) {
         $errors[] = 'Select a valid student.';
-    } elseif ($action === 'update_contact') {
+    } else {
+        require_student_branch($db, $studentId);
+    }
+
+    if (!$errors && $action === 'update_contact') {
         $phoneNumber = is_string($_POST['phone_number'] ?? null) ? trim($_POST['phone_number']) : '';
         if (mb_strlen($phoneNumber) > 30) {
             $errors[] = 'Phone number must be 30 characters or fewer.';
@@ -28,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$phoneNumber !== '' ? $phoneNumber : null, $studentId]);
             $success = 'Student contact details updated.';
         }
-    } elseif ($action === 'update_fee') {
+    } elseif (!$errors && $action === 'update_fee') {
         $totalFee = is_string($_POST['total_fee'] ?? null) ? trim($_POST['total_fee']) : '';
         if (!is_numeric($totalFee) || (float)$totalFee < 0 || (float)$totalFee > 99999999.99) {
             $errors[] = 'Enter a valid non-negative fee amount.';
@@ -60,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
-    } elseif ($action === 'record_payment') {
+    } elseif (!$errors && $action === 'record_payment') {
         $amount = is_string($_POST['amount'] ?? null) ? trim($_POST['amount']) : '';
         $method = is_string($_POST['payment_method'] ?? null) ? $_POST['payment_method'] : '';
         $reference = is_string($_POST['reference'] ?? null) ? trim($_POST['reference']) : '';
@@ -115,12 +124,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
-    } else {
+    } elseif (!$errors) {
         $errors[] = 'Invalid fee action.';
     }
 }
 
-$branches = $db->query('SELECT id, name FROM branches ORDER BY name')->fetchAll();
+$branchesStmt = $branchRole
+    ? $db->prepare('SELECT id, name FROM branches WHERE id = ? ORDER BY name')
+    : $db->query('SELECT id, name FROM branches ORDER BY name');
+if ($branchRole) {
+    $branchesStmt->execute([$assignedBranchId]);
+}
+$branches = $branchesStmt->fetchAll();
 $sql = 'SELECT s.id, s.admission_number, s.holder_name, s.phone_number, s.course_name, s.total_fee, b.name AS branch_name,
                COALESCE(p.paid, 0) AS paid
         FROM students s
@@ -151,13 +166,13 @@ require __DIR__ . '/../includes/header.php';
 ?>
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div><div class="portal-eyebrow">Finance</div><h1 class="fw-bold mb-1">Student Fees</h1><p class="text-muted mb-0">Update fee totals and record payments against student balances.</p></div>
-    <form method="get" class="d-flex gap-2">
+    <?php if (!$branchRole): ?><form method="get" class="d-flex gap-2">
         <select name="branch" class="form-select" aria-label="Filter by branch">
             <option value="">All branches</option>
             <?php foreach ($branches as $branch): ?><option value="<?= (int)$branch['id'] ?>" <?= $branchFilter === (int)$branch['id'] ? 'selected' : '' ?>><?= e($branch['name']) ?></option><?php endforeach; ?>
         </select>
         <button class="btn btn-outline-primary">Filter</button>
-    </form>
+    </form><?php endif; ?>
 </div>
 <?php if ($errors): ?><div class="alert alert-danger"><ul class="mb-0"><?php foreach ($errors as $error): ?><li><?= e($error) ?></li><?php endforeach; ?></ul></div><?php endif; ?>
 <?php if ($success): ?><div class="alert alert-success"><?= e($success) ?><?php if ($receiptId): ?> <a class="alert-link" href="receipt.php?id=<?= $receiptId ?>" target="_blank">Print receipt</a><?php endif; ?></div><?php endif; ?>
@@ -175,6 +190,9 @@ require __DIR__ . '/../includes/header.php';
                 <td>KES <?= number_format((float)$student['paid'], 2) ?></td>
                 <td class="<?= $balance > 0 ? 'text-danger fw-semibold' : 'text-success fw-semibold' ?>">KES <?= number_format($balance, 2) ?></td>
                 <td>
+                    <?php if (is_role('manager')): ?>
+                        <span class="text-muted">Read only</span>
+                    <?php else: ?>
                     <details><summary class="btn btn-sm btn-outline-primary">Manage</summary>
                         <div class="border rounded p-3 mt-2" style="min-width:300px">
                             <?php
@@ -214,6 +232,7 @@ require __DIR__ . '/../includes/header.php';
                             </form>
                         </div>
                     </details>
+                    <?php endif; ?>
                 </td>
             </tr>
         <?php endforeach; ?>

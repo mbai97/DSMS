@@ -2,13 +2,25 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_admin();
+require_roles('admin', 'manager', 'branch');
 
 $page_title = 'Student Enrollment';
+$branchRole = is_role('branch');
+$assignedBranchId = current_admin_branch_id();
+if ($branchRole && $assignedBranchId === null) {
+    http_response_code(403);
+    exit('This Branch account has no assigned branch. Ask an administrator to assign one.');
+}
 
 $errors = [];
 $success = '';
-$branches = $db->query('SELECT id, name FROM branches ORDER BY name')->fetchAll();
+$branchesStmt = $branchRole
+    ? $db->prepare('SELECT id, name FROM branches WHERE id = ? ORDER BY name')
+    : $db->query('SELECT id, name FROM branches ORDER BY name');
+if ($branchRole) {
+    $branchesStmt->execute([$assignedBranchId]);
+}
+$branches = $branchesStmt->fetchAll();
 $courses = $db->query('SELECT id, name, code, duration_days, default_fee FROM courses WHERE active = 1 ORDER BY name')->fetchAll();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -19,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'add_student') {
         $holder = trim((string)($_POST['holder_name'] ?? ''));
         $courseId = filter_var($_POST['course_id'] ?? null, FILTER_VALIDATE_INT);
-        $branchId = filter_var($_POST['branch_id'] ?? null, FILTER_VALIDATE_INT);
+        $branchId = $branchRole ? $assignedBranchId : filter_var($_POST['branch_id'] ?? null, FILTER_VALIDATE_INT);
         $feeInput = trim((string)($_POST['total_fee'] ?? ''));
         $phoneNumber = trim((string)($_POST['phone_number'] ?? ''));
         $idNumber = trim((string)($_POST['id_number'] ?? ''));
@@ -117,8 +129,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($id === false || $id === null || $id < 1) {
             $errors[] = 'Select a valid student.';
         } else {
-            $stmt = $db->prepare('SELECT course_duration_days, enrollment_date, status FROM students WHERE id = ?');
-            $stmt->execute([$id]);
+            $sql = 'SELECT course_duration_days, enrollment_date, status FROM students WHERE id = ?';
+            if ($branchRole) {
+                $sql .= ' AND branch_id = ?';
+            }
+            $stmt = $db->prepare($sql);
+            $stmt->execute($branchRole ? [$id, $assignedBranchId] : [$id]);
             $student = $stmt->fetch();
             if (!$student || !$student['course_duration_days']) {
                 $errors[] = 'This student does not have a configured course duration.';
@@ -127,8 +143,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif (date('Y-m-d') < date('Y-m-d', strtotime($student['enrollment_date'] . ' +' . (int)$student['course_duration_days'] . ' days'))) {
                 $errors[] = 'The course duration has not elapsed yet.';
             } else {
-                $stmt = $db->prepare("UPDATE students SET status = 'completed', completed_on = CURDATE() WHERE id = ?");
-                $stmt->execute([$id]);
+                $sql = "UPDATE students SET status = 'completed', completed_on = CURDATE() WHERE id = ?";
+                if ($branchRole) {
+                    $sql .= ' AND branch_id = ?';
+                }
+                $stmt = $db->prepare($sql);
+                $stmt->execute($branchRole ? [$id, $assignedBranchId] : [$id]);
                 $success = 'Student marked complete. Their certificate can now be issued.';
             }
         }
@@ -182,10 +202,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $stmt = $db->prepare('SELECT * FROM courses WHERE name = ? AND active = 1 LIMIT 1');
                                 $stmt->execute([$courseName]);
                                 $course = $stmt->fetch();
-                                $stmt = $db->prepare('SELECT id, code FROM branches WHERE name = ? LIMIT 1');
-                                $stmt->execute([$branchName]);
+                                if ($branchRole) {
+                                    $stmt = $db->prepare('SELECT id, code, name FROM branches WHERE id = ? LIMIT 1');
+                                    $stmt->execute([$assignedBranchId]);
+                                } else {
+                                    $stmt = $db->prepare('SELECT id, code, name FROM branches WHERE name = ? LIMIT 1');
+                                    $stmt->execute([$branchName]);
+                                }
                                 $branch = $stmt->fetch();
-                                if (!$course || !$branch || !$course['duration_days']) {
+                                if (!$course || !$branch || !$course['duration_days'] || ($branchRole && strcasecmp($branchName, $branch['name']) !== 0)) {
                                     throw new RuntimeException('CSV row ' . $rowNumber . ' uses an unknown branch/course or a course without a configured duration.');
                                 }
                                 if ($feeInput !== '' && (!is_numeric($feeInput) || (float)$feeInput < 0 || (float)$feeInput > 99999999.99)) {
@@ -250,9 +275,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'delete_student') {
         $id = (int)($_POST['student_id'] ?? 0);
         if ($id > 0) {
-            $stmt = $db->prepare('DELETE FROM students WHERE id = ?');
-            $stmt->execute([$id]);
-            $success = 'Student record deleted.';
+            $sql = 'DELETE FROM students WHERE id = ?';
+            if ($branchRole) {
+                $sql .= ' AND branch_id = ?';
+            }
+            $stmt = $db->prepare($sql);
+            $stmt->execute($branchRole ? [$id, $assignedBranchId] : [$id]);
+            if ($stmt->rowCount() === 1) {
+                $success = 'Student record deleted.';
+            } else {
+                $errors[] = 'Student record not found in your assigned branch.';
+            }
         }
     }
 }
@@ -261,7 +294,15 @@ $page = max(1, (int)($_GET['page'] ?? 1));
 $perPage = 20;
 $offset = ($page - 1) * $perPage;
 
-$total = (int)$db->query('SELECT COUNT(*) FROM students')->fetchColumn();
+$totalSql = 'SELECT COUNT(*) FROM students';
+if ($branchRole) {
+    $totalSql .= ' WHERE branch_id = ?';
+    $stmt = $db->prepare($totalSql);
+    $stmt->execute([$assignedBranchId]);
+    $total = (int)$stmt->fetchColumn();
+} else {
+    $total = (int)$db->query($totalSql)->fetchColumn();
+}
 $stmt = $db->prepare(
     'SELECT s.*, b.name AS branch_name, c.name AS program_name,
             DATE_ADD(s.enrollment_date, INTERVAL s.course_duration_days DAY) AS expected_completion,
@@ -270,10 +311,15 @@ $stmt = $db->prepare(
      LEFT JOIN branches b ON b.id = s.branch_id
      LEFT JOIN courses c ON c.id = s.course_id
      LEFT JOIN (SELECT student_id, SUM(amount) AS paid FROM student_payments GROUP BY student_id) p ON p.student_id = s.id
+     ' . ($branchRole ? 'WHERE s.branch_id = ?' : '') . '
      ORDER BY s.enrollment_date DESC LIMIT ? OFFSET ?'
 );
-$stmt->bindValue(1, $perPage, PDO::PARAM_INT);
-$stmt->bindValue(2, $offset, PDO::PARAM_INT);
+$bindIndex = 1;
+if ($branchRole) {
+    $stmt->bindValue($bindIndex++, $assignedBranchId, PDO::PARAM_INT);
+}
+$stmt->bindValue($bindIndex++, $perPage, PDO::PARAM_INT);
+$stmt->bindValue($bindIndex, $offset, PDO::PARAM_INT);
 $stmt->execute();
 $students = $stmt->fetchAll();
 
@@ -302,6 +348,7 @@ require __DIR__ . '/../includes/header.php';
     <div class="alert alert-success"><?= e($success) ?></div>
 <?php endif; ?>
 
+<?php if (!is_role('manager')): ?>
 <div class="card p-4 mb-4">
     <ul class="nav nav-tabs mb-3">
         <li class="nav-item">
@@ -322,6 +369,12 @@ require __DIR__ . '/../includes/header.php';
                         <label class="form-label">Student Name</label>
                         <input type="text" name="holder_name" class="form-control" required>
                     </div>
+                    <?php if ($branchRole): ?>
+                    <div class="col-md-6">
+                        <label class="form-label">Branch</label>
+                        <input type="text" class="form-control" value="<?= e($branches[0]['name'] ?? '') ?>" readonly>
+                    </div>
+                    <?php else: ?>
                     <div class="col-md-6">
                         <label class="form-label">Branch</label>
                         <select name="branch_id" class="form-select" required>
@@ -329,6 +382,7 @@ require __DIR__ . '/../includes/header.php';
                             <?php foreach ($branches as $branch): ?><option value="<?= (int)$branch['id'] ?>"><?= e($branch['name']) ?></option><?php endforeach; ?>
                         </select>
                     </div>
+                    <?php endif; ?>
                     <div class="col-md-6">
                         <label class="form-label">Program</label>
                         <select name="course_id" id="course-id" class="form-select" required>
@@ -386,6 +440,7 @@ require __DIR__ . '/../includes/header.php';
         </div>
     </div>
 </div>
+<?php endif; ?>
 
 <div class="card p-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -433,13 +488,13 @@ require __DIR__ . '/../includes/header.php';
                                 </span>
                             </td>
                             <td class="d-flex gap-1 flex-wrap">
-                                <?php if ($student['status'] === 'active' && $student['course_duration_days'] && $student['expected_completion'] <= date('Y-m-d')): ?>
+                                <?php if (!is_role('manager') && $student['status'] === 'active' && $student['course_duration_days'] && $student['expected_completion'] <= date('Y-m-d')): ?>
                                     <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="complete_student"><input type="hidden" name="student_id" value="<?= (int)$student['id'] ?>"><button class="btn btn-sm btn-outline-success">Mark Complete</button></form>
                                 <?php elseif ($student['status'] === 'active' && $student['expected_completion']): ?>
                                     <span class="small text-muted align-self-center">Completes <?= e($student['expected_completion']) ?></span>
                                 <?php endif; ?>
                                 <a class="btn btn-sm btn-outline-primary" href="admission-letter.php?id=<?= (int)$student['id'] ?>">Admission Letter</a>
-                                <?php if ($student['status'] === 'completed' && empty($student['certificate_id'])): ?><a class="btn btn-sm btn-outline-primary" href="create-certificate.php?student_id=<?= (int)$student['id'] ?>">Award Certificate</a><?php elseif (!empty($student['certificate_id'])): ?><a class="btn btn-sm btn-outline-primary" href="view-certificate.php?id=<?= (int)$student['certificate_id'] ?>">View Certificate</a><?php endif; ?>
+                                <?php if ($student['status'] === 'completed' && empty($student['certificate_id']) && !is_role('manager')): ?><a class="btn btn-sm btn-outline-primary" href="create-certificate.php?student_id=<?= (int)$student['id'] ?>">Award Certificate</a><?php elseif (!empty($student['certificate_id'])): ?><a class="btn btn-sm btn-outline-primary" href="view-certificate.php?id=<?= (int)$student['certificate_id'] ?>">View Certificate</a><?php endif; ?>
                                 <a class="btn btn-sm btn-outline-secondary" href="fees.php">Fees</a>
                             </td>
                         </tr>

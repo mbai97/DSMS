@@ -3,12 +3,22 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_admin();
+require_roles('admin', 'manager', 'branch');
 ensure_storage();
 
 $id = (int)($_GET['id'] ?? 0);
-$stmt = $db->prepare('SELECT * FROM certificates WHERE id = ? LIMIT 1');
-$stmt->execute([$id]);
+$sql = 'SELECT c.* FROM certificates c';
+if (is_role('branch')) {
+    $sql .= ' JOIN students s ON s.certificate_id = c.id WHERE c.id = ? AND s.branch_id = ? LIMIT 1';
+} else {
+    $sql .= ' WHERE c.id = ? LIMIT 1';
+}
+$stmt = $db->prepare($sql);
+if (is_role('branch')) {
+    $stmt->execute([$id, current_admin_branch_id()]);
+} else {
+    $stmt->execute([$id]);
+}
 $certificate = $stmt->fetch();
 
 if (!$certificate) {
@@ -30,8 +40,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'revok
         exit('Revocation reason must be 255 characters or fewer.');
     }
 
-    $stmt = $db->prepare("UPDATE certificates SET status='revoked', revoked_at=NOW(), revoked_reason=? WHERE id=?");
-    $stmt->execute([$reason, $id]);
+    $sql = "UPDATE certificates SET status='revoked', revoked_at=NOW(), revoked_reason=? WHERE id=?";
+    if (is_role('branch')) {
+        $sql .= ' AND EXISTS (SELECT 1 FROM students WHERE students.certificate_id = certificates.id AND students.branch_id = ?)';
+    }
+    $stmt = $db->prepare($sql);
+    $stmt->execute(is_role('branch') ? [$reason, $id, current_admin_branch_id()] : [$reason, $id]);
+    if ($stmt->rowCount() !== 1) {
+        http_response_code(404);
+        exit('Certificate not found.');
+    }
 
     redirect('view-certificate.php?id=' . $id);
 }
@@ -82,7 +100,7 @@ require __DIR__ . '/../includes/header.php';
     <code class="d-block text-break"><?= e($verifyUrl) ?></code>
 </div>
 
-<?php if ($status !== 'revoked'): ?>
+<?php if ($status !== 'revoked' && !is_role('manager')): ?>
 <div class="card p-4 border border-danger">
     <h5 class="text-danger fw-bold">Revoke Certificate</h5>
     <p class="text-muted">Revocation immediately changes the public verification status.</p>

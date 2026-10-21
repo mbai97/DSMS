@@ -3,11 +3,22 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_admin();
+require_roles('admin', 'manager', 'branch');
 
-$branches = $db->query('SELECT id, name FROM branches ORDER BY name')->fetchAll();
+$branchRole = is_role('branch');
+$assignedBranchId = current_admin_branch_id();
+$branches = $branchRole
+    ? $db->prepare('SELECT id, name FROM branches WHERE id = ? ORDER BY name')
+    : $db->query('SELECT id, name FROM branches ORDER BY name');
+if ($branchRole) {
+    $branches->execute([$assignedBranchId]);
+}
+$branches = $branches->fetchAll();
 $branchId = filter_var($_GET['branch'] ?? null, FILTER_VALIDATE_INT);
 $branchId = $branchId !== false && $branchId !== null && $branchId > 0 ? $branchId : null;
+if ($branchRole) {
+    $branchId = $assignedBranchId;
+}
 $branchCondition = $branchId !== null ? ' WHERE s.branch_id = ?' : '';
 $branchConditionV = $branchId !== null ? ' WHERE v.branch_id = ?' : '';
 
@@ -55,7 +66,7 @@ $vehicleSql = "SELECT COUNT(*) AS vehicles,
 $stmt = $db->prepare($vehicleSql);
 $stmt->execute($branchId !== null ? [$branchId] : []);
 $fleetStats = $stmt->fetch();
-$branchRows = $db->query(
+$branchRowsSql =
     "SELECT b.id, b.name, COALESCE(s.students, 0) AS students, COALESCE(s.billed, 0) AS billed,
             COALESCE(s.paid, 0) AS paid, COALESCE(v.vehicles, 0) AS vehicles,
             COALESCE(v.assigned, 0) AS assigned, COALESCE(v.available, 0) AS available
@@ -75,8 +86,14 @@ $branchRows = $db->query(
          LEFT JOIN fleet_assignments fa ON fa.vehicle_id = x.id AND fa.returned_on IS NULL
          GROUP BY x.branch_id
      ) v ON v.branch_id = b.id
-     ORDER BY b.name"
-)->fetchAll();
+    ";
+if ($branchRole) {
+    $branchRowsSql .= ' WHERE b.id = ?';
+}
+$branchRowsSql .= ' ORDER BY b.name';
+$branchRowsStmt = $db->prepare($branchRowsSql);
+$branchRowsStmt->execute($branchRole ? [$assignedBranchId] : []);
+$branchRows = $branchRowsStmt->fetchAll();
 
 $title = 'Dashboard';
 require __DIR__ . '/../includes/header.php';
@@ -84,10 +101,11 @@ require __DIR__ . '/../includes/header.php';
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <div class="portal-eyebrow">BeckynDS Certificate Registry</div>
-        <h1 class="fw-bold mb-1">Director Dashboard</h1>
+        <h1 class="fw-bold mb-1">Dashboard</h1>
         <p class="text-muted mb-0">Monitor enrollment, fees, branch operations, fleet and certificates.</p>
     </div>
     <div class="d-flex gap-2">
+        <?php if (!$branchRole): ?>
         <form method="get" class="d-flex gap-2">
             <select name="branch" class="form-select" aria-label="Filter dashboard by branch">
                 <option value="">All branches</option>
@@ -95,7 +113,8 @@ require __DIR__ . '/../includes/header.php';
             </select>
             <button class="btn btn-outline-primary">Filter</button>
         </form>
-        <a class="btn btn-primary" href="create-certificate.php">+ Issue Certificate</a>
+        <?php endif; ?>
+        <?php if (!$branchRole && !is_role('manager')): ?><a class="btn btn-primary" href="create-certificate.php">+ Issue Certificate</a><?php endif; ?>
     </div>
 </div>
 

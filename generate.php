@@ -81,8 +81,14 @@ if ($id <= 0) {
 }
 
 try {
-    $stmt = $db->prepare('SELECT * FROM certificates WHERE id = ? LIMIT 1');
-    $stmt->execute([$id]);
+    $sql = 'SELECT c.* FROM certificates c';
+    if (is_role('branch')) {
+        $sql .= ' JOIN students s ON s.certificate_id = c.id WHERE c.id = ? AND s.branch_id = ? LIMIT 1';
+    } else {
+        $sql .= ' WHERE c.id = ? LIMIT 1';
+    }
+    $stmt = $db->prepare($sql);
+    $stmt->execute(is_role('branch') ? [$id, current_admin_branch_id()] : [$id]);
     $cert = $stmt->fetch(PDO::FETCH_ASSOC);
 } catch (Throwable $e) {
     $fail('database read', $e);
@@ -716,11 +722,13 @@ if (file_put_contents($pdfPath, $pdfOutput, LOCK_EX) === false) {
 $relativePdf = 'storage/certificates/' . $safeNumber . '.pdf';
 $relativeQr = 'storage/qrcodes/' . $safeNumber . '.png';
 
-try {
-    $update = $db->prepare('UPDATE certificates SET pdf_path = ?, qr_path = ? WHERE id = ?');
-    $update->execute([$relativePdf, $relativeQr, $id]);
-} catch (Throwable $e) {
-    $fail('database update', $e);
+if (!is_role('manager')) {
+    try {
+        $update = $db->prepare('UPDATE certificates SET pdf_path = ?, qr_path = ? WHERE id = ?');
+        $update->execute([$relativePdf, $relativeQr, $id]);
+    } catch (Throwable $e) {
+        $fail('database update', $e);
+    }
 }
 
 while (ob_get_level() > 0) {

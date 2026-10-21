@@ -3,19 +3,25 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_admin();
+require_roles('admin', 'branch');
 ensure_storage();
 
 $errors = [];
 $studentId = filter_var($_POST['student_id'] ?? $_GET['student_id'] ?? null, FILTER_VALIDATE_INT);
 $studentId = $studentId === false || $studentId === null || $studentId < 1 ? null : $studentId;
+if (is_role('branch') && $studentId === null) {
+    http_response_code(403);
+    exit('Branch accounts can only issue certificates for completed students in their assigned branch.');
+}
 $enrolledStudent = null;
 if ($studentId !== null) {
-    $stmt = $db->prepare(
-        'SELECT s.*, c.certificate_type
-         FROM students s LEFT JOIN courses c ON c.id = s.course_id WHERE s.id = ? LIMIT 1'
-    );
-    $stmt->execute([$studentId]);
+    $sql = 'SELECT s.*, c.certificate_type FROM students s LEFT JOIN courses c ON c.id = s.course_id WHERE s.id = ?';
+    if (is_role('branch')) {
+        $sql .= ' AND s.branch_id = ?';
+    }
+    $sql .= ' LIMIT 1';
+    $stmt = $db->prepare($sql);
+    $stmt->execute(is_role('branch') ? [$studentId, current_admin_branch_id()] : [$studentId]);
     $enrolledStudent = $stmt->fetch() ?: null;
     if (!$enrolledStudent || $enrolledStudent['status'] !== 'completed') {
         $errors[] = 'Certificates can only be awarded to students whose course is complete.';
@@ -114,8 +120,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $db->beginTransaction();
                 try {
                     if ($studentId !== null) {
-                        $stmt = $db->prepare('SELECT status, certificate_id FROM students WHERE id = ? FOR UPDATE');
-                        $stmt->execute([$studentId]);
+                        $sql = 'SELECT status, certificate_id, branch_id FROM students WHERE id = ?';
+                        if (is_role('branch')) {
+                            $sql .= ' AND branch_id = ?';
+                        }
+                        $sql .= ' FOR UPDATE';
+                        $stmt = $db->prepare($sql);
+                        $stmt->execute(is_role('branch') ? [$studentId, current_admin_branch_id()] : [$studentId]);
                         $lockedStudent = $stmt->fetch();
                         if (!$lockedStudent || $lockedStudent['status'] !== 'completed' || $lockedStudent['certificate_id']) {
                             throw new RuntimeException('This student is no longer eligible for a new certificate.');
