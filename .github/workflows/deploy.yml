@@ -1,5 +1,5 @@
 
-name: Deploy Beckyn Certificate System
+name: Deploy Beckyn Management System
 
 on:
   push:
@@ -20,124 +20,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify admin files
-        run: |
-          echo "Checking admin directory..."
-          if [ ! -d "admin" ]; then
-            echo "ERROR: admin directory is missing from checkout"
-            exit 1
-          fi
-
-          find admin -type f -print | sort
-
-          echo "Total admin files:"
-          find admin -type f | wc -l
-
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           extensions: mbstring, dom, gd, pdo_mysql
           tools: composer:v2
-          coverage: none
 
       - name: Install production dependencies
-        run: |
-          composer install \
-            --no-dev \
-            --prefer-dist \
-            --no-interaction \
-            --optimize-autoloader
-
-      - name: Verify FTP deployment directory
-        env:
-          FTP_SERVER: ${{ secrets.FTP_SERVER }}
-          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          FTP_PORT: ${{ secrets.FTP_PORT }}
-          FTP_PROTOCOL: ${{ secrets.FTP_PROTOCOL }}
-          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
-        run: |
-          python3 - <<'PY'
-          import ftplib
-          import os
-          import re
-          import socket
-          import sys
-
-          server = os.environ.get("FTP_SERVER", "").strip()
-          username = os.environ.get("FTP_USERNAME", "").strip()
-          password = os.environ.get("FTP_PASSWORD", "")
-          server_dir = os.environ.get("FTP_SERVER_DIR", "").strip()
-          protocol = os.environ.get("FTP_PROTOCOL", "ftp").lower()
-          port_value = os.environ.get("FTP_PORT", "").strip()
-
-          if not server or not username or not password:
-              sys.exit("FTP_SERVER, FTP_USERNAME, and FTP_PASSWORD must be set in GitHub Actions secrets.")
-          if not server_dir:
-              sys.exit("FTP_SERVER_DIR is empty. Set it to the existing application directory visible to this FTP account.")
-          if protocol not in ("ftp", "ftps"):
-              sys.exit("FTP_PROTOCOL must be ftp or ftps.")
-          try:
-              port = int(port_value or "21")
-              if not 1 <= port <= 65535:
-                  raise ValueError
-          except ValueError:
-              sys.exit("FTP_PORT must be a valid port number between 1 and 65535.")
-          if any(character.isspace() for character in server) or "/" in server:
-              sys.exit("FTP_SERVER must be a hostname only, without a protocol prefix, path, or spaces.")
-          if re.fullmatch(r"[A-Za-z0-9.-]+", server) is None:
-              sys.exit("FTP_SERVER contains invalid characters. Use the FTP hostname provided by your hosting account.")
-
-          try:
-              socket.getaddrinfo(server, port)
-          except socket.gaierror as error:
-              sys.exit(
-                  f"FTP_SERVER '{server}' could not be resolved. Update the FTP_SERVER GitHub Actions "
-                  "secret with the exact FTP hostname provided by your hosting account."
-              )
-
-          ftp = ftplib.FTP_TLS() if protocol == "ftps" else ftplib.FTP()
-          try:
-              try:
-                  ftp.connect(server, port, timeout=20)
-                  ftp.login(username, password)
-                  if protocol == "ftps":
-                      ftp.prot_p()
-              except ftplib.all_errors as error:
-                  raise RuntimeError(
-                      f"Could not connect or authenticate to FTP server '{server}' on port {port}. "
-                      "Check FTP_SERVER, FTP_PORT, FTP_PROTOCOL, and the hosting firewall/account settings."
-                  ) from error
-              try:
-                  ftp.cwd(server_dir)
-              except ftplib.all_errors as error:
-                  raise RuntimeError(
-                      "FTP_SERVER_DIR is not reachable. Set it to the existing application directory "
-                      "as seen by this FTP account (for example, /public_html/certificates/)."
-                  ) from error
-
-              try:
-                  ftp.mkd("admin")
-                  print("Created remote admin directory.")
-              except ftplib.error_perm:
-                  try:
-                      ftp.cwd("admin")
-                      ftp.cwd("..")
-                      print("Remote admin directory already exists.")
-                  except ftplib.all_errors as error:
-                      raise RuntimeError(
-                          "The deployment root is reachable, but its admin directory is missing and "
-                          "could not be created. Create it in the hosting file manager or grant this "
-                          "FTP account permission to create directories."
-                      ) from error
-          finally:
-              if ftp.sock is not None:
-                  try:
-                      ftp.quit()
-                  except ftplib.all_errors:
-                      ftp.close()
-          PY
+        run: composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
 
       - name: Deploy via FTP/FTPS
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
@@ -149,9 +40,6 @@ jobs:
           protocol: ${{ secrets.FTP_PROTOCOL }}
           local-dir: ./
           server-dir: ${{ secrets.FTP_SERVER_DIR }}
-
-          dangerous-clean-slate: false
-          log-level: verbose
 
           exclude: |
             **/.git*
