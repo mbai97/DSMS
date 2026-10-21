@@ -21,6 +21,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $courseId = filter_var($_POST['course_id'] ?? null, FILTER_VALIDATE_INT);
         $branchId = filter_var($_POST['branch_id'] ?? null, FILTER_VALIDATE_INT);
         $feeInput = trim((string)($_POST['total_fee'] ?? ''));
+        $phoneNumber = trim((string)($_POST['phone_number'] ?? ''));
+        $idNumber = trim((string)($_POST['id_number'] ?? ''));
+        $email = strtolower(trim((string)($_POST['email'] ?? '')));
+        $nextOfKinName = trim((string)($_POST['next_of_kin_name'] ?? ''));
+        $nextOfKinPhone = trim((string)($_POST['next_of_kin_phone'] ?? ''));
+        $nextOfKinRelationship = trim((string)($_POST['next_of_kin_relationship'] ?? ''));
 
         if ($holder === '') {
             $errors[] = 'Student name is required.';
@@ -33,6 +39,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if ($branchId === false || $branchId === null) {
             $errors[] = 'Select a branch.';
+        }
+        if (mb_strlen($phoneNumber) > 30) {
+            $errors[] = 'Phone number must be 30 characters or fewer.';
+        }
+        if (mb_strlen($idNumber) > 50) {
+            $errors[] = 'ID number must be 50 characters or fewer.';
+        }
+        if (mb_strlen($email) > 190 || ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL))) {
+            $errors[] = 'Enter a valid email address of 190 characters or fewer.';
+        }
+        if (mb_strlen($nextOfKinName) > 190) {
+            $errors[] = 'Next-of-kin name must be 190 characters or fewer.';
+        }
+        if (mb_strlen($nextOfKinPhone) > 30) {
+            $errors[] = 'Next-of-kin phone number must be 30 characters or fewer.';
+        }
+        if (mb_strlen($nextOfKinRelationship) > 100) {
+            $errors[] = 'Next-of-kin relationship must be 100 characters or fewer.';
         }
 
         if (!$errors) {
@@ -54,13 +78,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $db->beginTransaction();
                 try {
                     $admissionNumber = next_admission_number($db, (int)$branch['id'], $branch['code'], (int)$course['id'], $course['code']);
-                    $phoneNumber = trim((string)($_POST['phone_number'] ?? ''));
-                    if (mb_strlen($phoneNumber) > 30) {
-                        throw new RuntimeException('Phone number must be 30 characters or fewer.');
-                    }
                     $stmt = $db->prepare(
-                        'INSERT INTO students (learner_id, admission_number, holder_name, course_id, course_name, branch_id, course_duration_days, total_fee, phone_number, enrollment_date, status)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), ?)'
+                        'INSERT INTO students (learner_id, admission_number, holder_name, course_id, course_name, branch_id, course_duration_days, total_fee, phone_number, id_number, email, next_of_kin_name, next_of_kin_phone, next_of_kin_relationship, enrollment_date, status)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), ?)'
                     );
                     $stmt->execute([
                         $admissionNumber,
@@ -72,6 +92,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $course['duration_days'],
                         number_format((float)($feeInput !== '' ? $feeInput : $course['default_fee']), 2, '.', ''),
                         $phoneNumber !== '' ? $phoneNumber : null,
+                        $idNumber !== '' ? $idNumber : null,
+                        $email !== '' ? $email : null,
+                        $nextOfKinName !== '' ? $nextOfKinName : null,
+                        $nextOfKinPhone !== '' ? $nextOfKinPhone : null,
+                        $nextOfKinRelationship !== '' ? $nextOfKinRelationship : null,
                         'active',
                     ]);
                     $db->commit();
@@ -133,8 +158,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         try {
                             $rowNumber = 1;
                             $insert = $db->prepare(
-                                'INSERT INTO students (learner_id, admission_number, holder_name, course_id, course_name, branch_id, course_duration_days, total_fee, phone_number, enrollment_date, status)
-                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), ?)'
+                                'INSERT INTO students (learner_id, admission_number, holder_name, course_id, course_name, branch_id, course_duration_days, total_fee, phone_number, id_number, email, next_of_kin_name, next_of_kin_phone, next_of_kin_relationship, enrollment_date, status)
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), ?)'
                             );
                             while (($row = fgetcsv($handle)) !== false) {
                                 $rowNumber++;
@@ -146,6 +171,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $branchName = trim((string)($row[$columns['branch_name']] ?? ''));
                                 $feeInput = isset($columns['total_fee']) ? trim((string)($row[$columns['total_fee']] ?? '')) : '';
                                 $phoneNumber = isset($columns['phone_number']) ? trim((string)($row[$columns['phone_number']] ?? '')) : '';
+                                $idNumber = isset($columns['id_number']) ? trim((string)($row[$columns['id_number']] ?? '')) : '';
+                                $email = isset($columns['email']) ? strtolower(trim((string)($row[$columns['email']] ?? ''))) : '';
+                                $nextOfKinName = isset($columns['next_of_kin_name']) ? trim((string)($row[$columns['next_of_kin_name']] ?? '')) : '';
+                                $nextOfKinPhone = isset($columns['next_of_kin_phone']) ? trim((string)($row[$columns['next_of_kin_phone']] ?? '')) : '';
+                                $nextOfKinRelationship = isset($columns['next_of_kin_relationship']) ? trim((string)($row[$columns['next_of_kin_relationship']] ?? '')) : '';
                                 if ($studentName === '' || mb_strlen($studentName) > 190 || $courseName === '' || $branchName === '') {
                                     throw new RuntimeException('CSV row ' . $rowNumber . ' has a missing or invalid student, course, or branch.');
                                 }
@@ -167,6 +197,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 if (mb_strlen($phoneNumber) > 30) {
                                     throw new RuntimeException('CSV row ' . $rowNumber . ' has an invalid phone number.');
                                 }
+                                if (mb_strlen($idNumber) > 50) {
+                                    throw new RuntimeException('CSV row ' . $rowNumber . ' has an invalid ID number.');
+                                }
+                                if (mb_strlen($email) > 190 || ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL))) {
+                                    throw new RuntimeException('CSV row ' . $rowNumber . ' has an invalid email address.');
+                                }
+                                if (mb_strlen($nextOfKinName) > 190 || mb_strlen($nextOfKinPhone) > 30 || mb_strlen($nextOfKinRelationship) > 100) {
+                                    throw new RuntimeException('CSV row ' . $rowNumber . ' has invalid next-of-kin details.');
+                                }
                                 $admissionNumber = next_admission_number($db, (int)$branch['id'], $branch['code'], (int)$course['id'], $course['code']);
                                 $insert->execute([
                                     $admissionNumber,
@@ -178,6 +217,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     $course['duration_days'],
                                     number_format((float)($feeInput !== '' ? $feeInput : $course['default_fee']), 2, '.', ''),
                                     $phoneNumber !== '' ? $phoneNumber : null,
+                                    $idNumber !== '' ? $idNumber : null,
+                                    $email !== '' ? $email : null,
+                                    $nextOfKinName !== '' ? $nextOfKinName : null,
+                                    $nextOfKinPhone !== '' ? $nextOfKinPhone : null,
+                                    $nextOfKinRelationship !== '' ? $nextOfKinRelationship : null,
                                     'active',
                                 ]);
                                 $count++;
@@ -303,6 +347,26 @@ require __DIR__ . '/../includes/header.php';
                         <label class="form-label">Student Phone <span class="text-muted fw-normal">(for WhatsApp payment requests)</span></label>
                         <input type="tel" name="phone_number" maxlength="30" class="form-control" placeholder="e.g. 0712345678">
                     </div>
+                    <div class="col-md-6">
+                        <label class="form-label">National ID / Passport Number</label>
+                        <input type="text" name="id_number" maxlength="50" class="form-control">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" name="email" maxlength="190" class="form-control">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Next-of-Kin Name <span class="text-muted fw-normal">(optional)</span></label>
+                        <input type="text" name="next_of_kin_name" maxlength="190" class="form-control">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Next-of-Kin Phone <span class="text-muted fw-normal">(optional)</span></label>
+                        <input type="tel" name="next_of_kin_phone" maxlength="30" class="form-control">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Relationship to Student <span class="text-muted fw-normal">(optional)</span></label>
+                        <input type="text" name="next_of_kin_relationship" maxlength="100" class="form-control" placeholder="e.g. Parent, spouse">
+                    </div>
                 </div>
                 <button class="btn btn-primary mt-3">Enroll Student</button>
             </form>
@@ -316,7 +380,7 @@ require __DIR__ . '/../includes/header.php';
                     <label class="form-label">CSV file</label>
                     <input type="file" name="csv_file" class="form-control" accept=".csv" required>
                 </div>
-                <div class="form-text mb-3">Required CSV columns: student_name, course_name, branch_name. Optional columns: total_fee, phone_number. Course names and branches must match the configured options; all rows receive generated admission numbers.</div>
+                <div class="form-text mb-3">Required CSV columns: student_name, course_name, branch_name. Optional columns: total_fee, phone_number, id_number, email, next_of_kin_name, next_of_kin_phone, next_of_kin_relationship. Course names and branches must match the configured options; all rows receive generated admission numbers.</div>
                 <button class="btn btn-primary">Upload Students</button>
             </form>
         </div>
@@ -333,6 +397,7 @@ require __DIR__ . '/../includes/header.php';
             <thead>
                 <tr>
                     <th>Student Name</th>
+                    <th>Contact / ID</th>
                     <th>Admission</th>
                     <th>Program / Branch</th>
                     <th>Enrollment Date</th>
@@ -344,12 +409,20 @@ require __DIR__ . '/../includes/header.php';
             <tbody>
                 <?php if (!$students): ?>
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-4">No students found.</td>
+                        <td colspan="8" class="text-center text-muted py-4">No students found.</td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($students as $student): ?>
                         <tr>
                             <td><?= e($student['holder_name']) ?></td>
+                            <td>
+                                <?php if (!empty($student['phone_number'])): ?><div><?= e($student['phone_number']) ?></div><?php endif; ?>
+                                <?php if (!empty($student['id_number'])): ?><div class="small text-muted">ID: <?= e($student['id_number']) ?></div><?php endif; ?>
+                                <?php if (!empty($student['email'])): ?><div class="small text-muted"><?= e($student['email']) ?></div><?php endif; ?>
+                                <?php if (!empty($student['next_of_kin_name']) || !empty($student['next_of_kin_phone']) || !empty($student['next_of_kin_relationship'])): ?>
+                                    <div class="small text-muted">Next of kin: <?= e($student['next_of_kin_name'] ?: '—') ?><?= !empty($student['next_of_kin_relationship']) ? ' (' . e($student['next_of_kin_relationship']) . ')' : '' ?><?= !empty($student['next_of_kin_phone']) ? ' · ' . e($student['next_of_kin_phone']) : '' ?></div>
+                                <?php endif; ?>
+                            </td>
                             <td><?= e($student['admission_number'] ?? $student['learner_id'] ?? '—') ?></td>
                             <td><?= e($student['program_name'] ?? $student['course_name']) ?><div class="small text-muted"><?= e($student['branch_name'] ?? 'Branch not assigned') ?></div></td>
                             <td><?= e($student['enrollment_date']) ?></td>

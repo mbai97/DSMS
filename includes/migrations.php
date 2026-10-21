@@ -11,7 +11,7 @@ function run_database_migrations(PDO $db): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
     $version = $db->prepare('SELECT 1 FROM app_migrations WHERE version = ? LIMIT 1');
-    $version->execute(['student-fees-fleet-contact-20261020']);
+    $version->execute(['student-contact-details-20261021']);
     if ($version->fetchColumn()) {
         return;
     }
@@ -66,6 +66,11 @@ function run_database_migrations(PDO $db): void
         'completed_on' => 'DATE NULL',
         'certificate_id' => 'BIGINT UNSIGNED NULL',
         'phone_number' => 'VARCHAR(30) NULL',
+        'id_number' => 'VARCHAR(50) NULL',
+        'email' => 'VARCHAR(190) NULL',
+        'next_of_kin_name' => 'VARCHAR(190) NULL',
+        'next_of_kin_phone' => 'VARCHAR(30) NULL',
+        'next_of_kin_relationship' => 'VARCHAR(100) NULL',
     ];
     foreach ($columns as $column => $definition) {
         $stmt = $db->prepare(
@@ -158,5 +163,5 @@ function run_database_migrations(PDO $db): void
     );
 
     $stmt = $db->prepare('INSERT IGNORE INTO app_migrations (version) VALUES (?)');
-    $stmt->execute(['student-fees-fleet-contact-20261020']);
+    $stmt->execute(['student-contact-details-20261021']);
 }
