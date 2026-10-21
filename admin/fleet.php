@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_roles('admin', 'manager', 'branch');
+require_roles('admin', 'manager', 'director', 'branch');
 
 $errors = [];
 $success = '';
@@ -11,6 +11,10 @@ $branchRole = is_role('branch');
 $assignedBranchId = current_admin_branch_id();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($branchRole) {
+        http_response_code(403);
+        exit('Branch accounts have read-only access to the fleet.');
+    }
     verify_csrf();
     $action = is_string($_POST['action'] ?? null) ? $_POST['action'] : '';
 
@@ -177,7 +181,7 @@ require __DIR__ . '/../includes/header.php';
 <?php if ($errors): ?><div class="alert alert-danger"><ul class="mb-0"><?php foreach ($errors as $error): ?><li><?= e($error) ?></li><?php endforeach; ?></ul></div><?php endif; ?>
 <?php if ($success): ?><div class="alert alert-success"><?= e($success) ?></div><?php endif; ?>
 <div class="row g-3 mb-4">
-    <?php if (!is_role('manager')): ?><div class="col-lg-5"><div class="card p-4 h-100"><h5 class="fw-bold">Add Vehicle</h5>
+    <?php if (!$branchRole && !is_role('manager') && !is_role('director')): ?><div class="col-lg-5"><div class="card p-4 h-100"><h5 class="fw-bold">Add Vehicle</h5>
         <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="add_vehicle">
             <label class="form-label">Registration number</label><input class="form-control mb-3" name="registration_no" maxlength="30" required>
             <label class="form-label">Make / model</label><input class="form-control mb-3" name="make_model" maxlength="120" required>
@@ -186,7 +190,7 @@ require __DIR__ . '/../includes/header.php';
         </form>
     </div></div><?php endif; ?>
     <div class="col-lg-7"><div class="card p-4 h-100"><h5 class="fw-bold">Assign a Vehicle</h5>
-        <?php if (is_role('manager')): ?><p class="text-muted mb-0">Manager accounts have read-only access.</p><?php elseif (!$availableVehicles || !$students): ?><p class="text-muted mb-0">Add an available vehicle and enroll an active student at the same branch to create an assignment.</p><?php else: ?>
+        <?php if ($branchRole): ?><p class="text-muted mb-0">Branch accounts have read-only access to the fleet.</p><?php elseif (is_role('manager') || is_role('director')): ?><p class="text-muted mb-0">This account has read-only access to the fleet.</p><?php elseif (!$availableVehicles || !$students): ?><p class="text-muted mb-0">Add an available vehicle and enroll an active student at the same branch to create an assignment.</p><?php else: ?>
         <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="assign_vehicle">
             <label class="form-label">Available vehicle</label><select class="form-select mb-3" name="vehicle_id" required><option value="">Select vehicle</option><?php foreach ($availableVehicles as $vehicle): ?><option value="<?= (int)$vehicle['id'] ?>" data-branch="<?= (int)$vehicle['branch_id'] ?>"><?= e($vehicle['registration_no'] . ' — ' . $vehicle['branch_name']) ?></option><?php endforeach; ?></select>
             <label class="form-label">Active student</label><select class="form-select mb-3" name="student_id" required><option value="">Select student from the vehicle branch</option><?php foreach ($students as $student): ?><option value="<?= (int)$student['id'] ?>" data-branch="<?= (int)$student['branch_id'] ?>"><?= e(($student['admission_number'] ?: 'No admission') . ' — ' . $student['holder_name'] . ' (' . $student['course_name'] . ')') ?></option><?php endforeach; ?></select>
@@ -202,7 +206,7 @@ require __DIR__ . '/../includes/header.php';
             <td><span class="badge text-bg-<?= $vehicle['assignment_id'] ? 'primary' : ($vehicle['status'] === 'available' ? 'success' : 'secondary') ?>"><?= e($vehicle['assignment_id'] ? 'ASSIGNED' : strtoupper($vehicle['status'])) ?></span></td>
             <td><?= e($vehicle['student_name'] ?? '—') ?><?php if ($vehicle['admission_number']): ?><div class="small text-muted"><?= e($vehicle['admission_number']) ?></div><?php endif; ?></td>
             <td class="d-flex gap-2">
-                <?php if (is_role('manager')): ?><span class="text-muted">Read only</span><?php else: ?>
+                <?php if ($branchRole || is_role('manager') || is_role('director')): ?><span class="text-muted">Read only</span><?php else: ?>
                 <?php if ($vehicle['assignment_id']): ?><form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="return_vehicle"><input type="hidden" name="assignment_id" value="<?= (int)$vehicle['assignment_id'] ?>"><button class="btn btn-sm btn-outline-primary">Return</button></form><?php else: ?>
                 <form method="post" class="d-flex gap-1"><?= csrf_field() ?><input type="hidden" name="action" value="update_vehicle_status"><input type="hidden" name="vehicle_id" value="<?= (int)$vehicle['id'] ?>"><select name="status" class="form-select form-select-sm"><option value="available" <?= $vehicle['status'] === 'available' ? 'selected' : '' ?>>Available</option><option value="maintenance" <?= $vehicle['status'] === 'maintenance' ? 'selected' : '' ?>>Maintenance</option><option value="retired" <?= $vehicle['status'] === 'retired' ? 'selected' : '' ?>>Retired</option></select><button class="btn btn-sm btn-outline-secondary">Update</button></form><?php endif; ?>
                 <?php endif; ?>

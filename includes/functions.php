@@ -138,6 +138,15 @@ function require_roles(string ...$roles): void
     }
 }
 
+function require_certificate_issuer(): void
+{
+    require_admin(true);
+    if (!in_array(current_admin_role(), ['admin', 'manager', 'director'], true)) {
+        http_response_code(403);
+        exit('You do not have permission to issue certificates.');
+    }
+}
+
 function require_branch_record(?int $branchId): void
 {
     if (is_role('branch') && ($branchId === null || $branchId !== current_admin_branch_id())) {
@@ -157,7 +166,7 @@ function require_student_branch(PDO $db, int $studentId): void
     require_branch_record($branchId === false || $branchId === null ? null : (int)$branchId);
 }
 
-function require_admin(): void
+function require_admin(bool $allowCertificateIssue = false): void
 {
     if (!admin_logged_in()) {
         redirect(app_url($GLOBALS['config'], 'admin/login.php'));
@@ -169,9 +178,13 @@ function require_admin(): void
         http_response_code(403);
         exit('This Branch account has no assigned branch. Ask an administrator to assign one.');
     }
-    if (is_role('manager') && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+    if (
+        in_array(current_admin_role(), ['manager', 'director'], true)
+        && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+        && !$allowCertificateIssue
+    ) {
         http_response_code(403);
-        exit('Manager accounts have read-only access.');
+        exit('This account has read-only access.');
     }
 }
 

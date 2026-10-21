@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_roles('admin', 'manager', 'branch');
+require_roles('admin', 'manager', 'director', 'branch');
 
 $page_title = 'Student Enrollment';
 $branchRole = is_role('branch');
@@ -494,7 +494,7 @@ require __DIR__ . '/../includes/header.php';
                                     <span class="small text-muted align-self-center">Completes <?= e($student['expected_completion']) ?></span>
                                 <?php endif; ?>
                                 <a class="btn btn-sm btn-outline-primary" href="admission-letter.php?id=<?= (int)$student['id'] ?>">Admission Letter</a>
-                                <?php if ($student['status'] === 'completed' && empty($student['certificate_id']) && !is_role('manager')): ?><a class="btn btn-sm btn-outline-primary" href="create-certificate.php?student_id=<?= (int)$student['id'] ?>">Award Certificate</a><?php elseif (!empty($student['certificate_id'])): ?><a class="btn btn-sm btn-outline-primary" href="view-certificate.php?id=<?= (int)$student['certificate_id'] ?>">View Certificate</a><?php endif; ?>
+                                <?php if ($student['status'] === 'completed' && empty($student['certificate_id']) && in_array(current_admin_role(), ['admin', 'manager', 'director'], true)): ?><a class="btn btn-sm btn-outline-primary" href="create-certificate.php?student_id=<?= (int)$student['id'] ?>">Award Certificate</a><?php elseif (!empty($student['certificate_id'])): ?><a class="btn btn-sm btn-outline-primary" href="view-certificate.php?id=<?= (int)$student['certificate_id'] ?>">View Certificate</a><?php endif; ?>
                                 <a class="btn btn-sm btn-outline-secondary" href="fees.php">Fees</a>
                             </td>
                         </tr>

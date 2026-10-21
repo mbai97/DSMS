@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_roles('admin', 'manager', 'branch');
+require_roles('admin', 'manager', 'director', 'branch');
 
 $errors = [];
 $success = '';

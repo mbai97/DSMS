@@ -94,7 +94,7 @@ function run_database_migrations(PDO $db): void
     if ((int)$index->fetchColumn() === 0) {
         $db->exec('CREATE INDEX idx_admin_branch ON admins (branch_id)');
     }
-    $db->exec("UPDATE admins SET role = 'manager' WHERE role IN ('director', 'editor')");
+    $db->exec("UPDATE admins SET role = 'manager' WHERE role = 'editor'");
     $index = $db->query(
         "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'students' AND column_name = 'admission_number' AND non_unique = 0"
     );

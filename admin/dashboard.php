@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_roles('admin', 'manager', 'branch');
+require_roles('admin', 'manager', 'director', 'branch');
 
 $branchRole = is_role('branch');
 $assignedBranchId = current_admin_branch_id();
@@ -114,7 +114,7 @@ require __DIR__ . '/../includes/header.php';
             <button class="btn btn-outline-primary">Filter</button>
         </form>
         <?php endif; ?>
-        <?php if (!$branchRole && !is_role('manager')): ?><a class="btn btn-primary" href="create-certificate.php">+ Issue Certificate</a><?php endif; ?>
+        <?php if (!$branchRole): ?><a class="btn btn-primary" href="create-certificate.php">+ Issue Certificate</a><?php endif; ?>
     </div>
 </div>
 
@@ -148,7 +148,7 @@ require __DIR__ . '/../includes/header.php';
 </div>
 
 <div class="card p-3 mb-4">
-    <div class="d-flex justify-content-between align-items-center mb-3"><h5 class="fw-bold mb-0">Branch Overview</h5><a href="fleet.php">Manage fleet</a></div>
+    <div class="d-flex justify-content-between align-items-center mb-3"><h5 class="fw-bold mb-0">Branch Overview</h5><a href="fleet.php"><?= $branchRole || is_role('manager') || is_role('director') ? 'View fleet' : 'Manage fleet' ?></a></div>
     <div class="table-responsive"><table class="table">
         <thead><tr><th>Branch</th><th>Students</th><th>Fees billed</th><th>Fees received</th><th>Balance</th><th>Vehicles</th><th>Assigned</th><th>Available</th></tr></thead>
         <tbody><?php foreach ($branchRows as $row): ?>

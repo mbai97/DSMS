@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_roles('admin', 'manager', 'branch');
+require_roles('admin', 'manager', 'director', 'branch');
 ensure_storage();
 
 $id = (int)($_GET['id'] ?? 0);
@@ -27,6 +27,10 @@ if (!$certificate) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'revoke') {
+    if (!is_role('admin')) {
+        http_response_code(403);
+        exit('Only administrators can revoke certificates.');
+    }
     verify_csrf();
 
     $reason = is_string($_POST['reason'] ?? null)
@@ -100,7 +104,7 @@ require __DIR__ . '/../includes/header.php';
     <code class="d-block text-break"><?= e($verifyUrl) ?></code>
 </div>
 
-<?php if ($status !== 'revoked' && !is_role('manager')): ?>
+<?php if ($status !== 'revoked' && is_role('admin')): ?>
 <div class="card p-4 border border-danger">
     <h5 class="text-danger fw-bold">Revoke Certificate</h5>
     <p class="text-muted">Revocation immediately changes the public verification status.</p>

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_roles('admin', 'manager', 'branch');
+require_roles('admin', 'manager', 'director', 'branch');
 
 $q = is_string($_GET['q'] ?? null) ? trim($_GET['q']) : '';
 $branchRole = is_role('branch');
@@ -40,7 +40,7 @@ require __DIR__ . '/../includes/header.php';
         <h1 class="fw-bold">Certificates</h1>
         <p class="text-muted mb-0">Search and manage issued certificates.</p>
     </div>
-    <?php if (is_role('admin')): ?><a class="btn btn-primary" href="create-certificate.php">+ Issue Certificate</a><?php endif; ?>
+    <?php if (in_array(current_admin_role(), ['admin', 'manager', 'director'], true)): ?><a class="btn btn-primary" href="create-certificate.php">+ Issue Certificate</a><?php endif; ?>
 </div>
 
 <div class="card p-3">
@@ -61,7 +61,7 @@ require __DIR__ . '/../includes/header.php';
                     <td><?= e($cert['course_name']) ?></td>
                     <td><?= e(format_date($cert['issue_date'])) ?></td>
                     <td><?= status_badge(certificate_status($cert)) ?></td>
-                    <td><a class="btn btn-sm btn-outline-primary" href="view-certificate.php?id=<?= (int)$cert['id'] ?>">Manage</a></td>
+                    <td><a class="btn btn-sm btn-outline-primary" href="view-certificate.php?id=<?= (int)$cert['id'] ?>"><?= $branchRole ? 'View / Print' : (is_role('admin') ? 'Manage' : 'View / Print') ?></a></td>
                 </tr>
             <?php endforeach; ?>
             <?php if (!$certificates): ?><tr><td colspan="7" class="text-center text-muted py-4">No certificates match this search.</td></tr><?php endif; ?>

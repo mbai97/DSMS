@@ -37,7 +37,7 @@ $title = $title ?? $config['app_name'];
                     <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/branding.php')) ?>">Branding</a>
                     <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/users.php')) ?>">Users</a>
                 <?php endif; ?>
-                <?php if ($navRole === 'admin'): ?>
+                <?php if (in_array($navRole, ['admin', 'manager', 'director'], true)): ?>
                     <a class="btn btn-sm btn-primary" href="<?= e(app_url($config, 'admin/create-certificate.php')) ?>">Issue Certificate</a>
                 <?php endif; ?>
                 <span class="badge text-bg-light"><?= e(strtoupper($navRole)) ?></span>
