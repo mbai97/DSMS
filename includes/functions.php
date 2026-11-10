@@ -179,7 +179,7 @@ function require_admin(bool $allowCertificateIssue = false): void
         exit('This Branch account has no assigned branch. Ask an administrator to assign one.');
     }
     if (
-        in_array(current_admin_role(), ['manager', 'director'], true)
+        in_array(current_admin_role(), ['manager', 'director', 'hr_officer'], true)
         && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
         && !$allowCertificateIssue
     ) {

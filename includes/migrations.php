@@ -2,6 +2,39 @@
 
 declare(strict_types=1);
 
+function run_staff_management_migration(PDO $db): void
+{
+    $version = 'staff-management-20261110';
+    $stmt = $db->prepare('SELECT 1 FROM app_migrations WHERE version = ? LIMIT 1');
+    $stmt->execute([$version]);
+    if ($stmt->fetchColumn()) {
+        return;
+    }
+
+    $db->exec(
+        "CREATE TABLE IF NOT EXISTS staff (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(120) NOT NULL,
+            email VARCHAR(190) NULL,
+            phone VARCHAR(30) NULL,
+            department VARCHAR(100) NOT NULL,
+            job_title VARCHAR(120) NOT NULL,
+            hire_date DATE NULL,
+            status ENUM('active','on_leave','inactive') NOT NULL DEFAULT 'active',
+            created_by INT UNSIGNED NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            KEY idx_staff_department (department),
+            KEY idx_staff_status (status),
+            KEY idx_staff_hire_date (hire_date),
+            CONSTRAINT fk_staff_creator FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    $stmt = $db->prepare('INSERT IGNORE INTO app_migrations (version) VALUES (?)');
+    $stmt->execute([$version]);
+}
+
 function run_database_migrations(PDO $db): void
 {
     $db->exec(
@@ -13,6 +46,7 @@ function run_database_migrations(PDO $db): void
     $version = $db->prepare('SELECT 1 FROM app_migrations WHERE version = ? LIMIT 1');
     $version->execute(['role-branch-access-20261021']);
     if ($version->fetchColumn()) {
+        run_staff_management_migration($db);
         return;
     }
     $db->exec(
@@ -178,4 +212,5 @@ function run_database_migrations(PDO $db): void
 
     $stmt = $db->prepare('INSERT IGNORE INTO app_migrations (version) VALUES (?)');
     $stmt->execute(['role-branch-access-20261021']);
+    run_staff_management_migration($db);
 }

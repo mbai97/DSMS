@@ -3,9 +3,11 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_roles('admin', 'manager', 'director', 'branch');
+require_roles('admin', 'manager', 'director', 'branch', 'hr_manager', 'hr_officer');
 
 $branchRole = is_role('branch');
+$hrRole = in_array(current_admin_role(), ['hr_manager', 'hr_officer'], true);
+$staffAccess = in_array(current_admin_role(), ['admin', 'hr_manager', 'hr_officer'], true);
 $assignedBranchId = current_admin_branch_id();
 $branches = $branchRole
     ? $db->prepare('SELECT id, name FROM branches WHERE id = ? ORDER BY name')
@@ -94,6 +96,20 @@ $branchRowsSql .= ' ORDER BY b.name';
 $branchRowsStmt = $db->prepare($branchRowsSql);
 $branchRowsStmt->execute($branchRole ? [$assignedBranchId] : []);
 $branchRows = $branchRowsStmt->fetchAll();
+$staffStats = $staffAccess ? $db->query(
+    "SELECT COUNT(*) AS total,
+            SUM(status = 'active') AS active,
+            SUM(status = 'on_leave') AS on_leave,
+            SUM(hire_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')) AS joined_this_month
+     FROM staff"
+)->fetch() : null;
+$staffDepartments = $staffAccess ? $db->query(
+    "SELECT department, COUNT(*) AS total, SUM(status = 'active') AS active
+     FROM staff GROUP BY department ORDER BY department"
+)->fetchAll() : [];
+$recentStaff = $staffAccess ? $db->query(
+    'SELECT name, department, job_title, status, created_at FROM staff ORDER BY created_at DESC, id DESC LIMIT 5'
+)->fetchAll() : [];
 
 $title = 'Dashboard';
 require __DIR__ . '/../includes/header.php';
@@ -101,11 +117,11 @@ require __DIR__ . '/../includes/header.php';
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <div class="portal-eyebrow">BeckynDS Certificate Registry</div>
-        <h1 class="fw-bold mb-1">Dashboard</h1>
-        <p class="text-muted mb-0">Monitor enrollment, fees, branch operations, fleet and certificates.</p>
+        <h1 class="fw-bold mb-1"><?= $hrRole ? 'People Dashboard' : 'Dashboard' ?></h1>
+        <p class="text-muted mb-0"><?= $hrRole ? 'Monitor workforce size, department coverage, and recent staff activity.' : 'Monitor enrollment, fees, branch operations, fleet and certificates.' ?></p>
     </div>
     <div class="d-flex gap-2">
-        <?php if (!$branchRole): ?>
+        <?php if (!$branchRole && !$hrRole): ?>
         <form method="get" class="d-flex gap-2">
             <select name="branch" class="form-select" aria-label="Filter dashboard by branch">
                 <option value="">All branches</option>
@@ -114,11 +130,27 @@ require __DIR__ . '/../includes/header.php';
             <button class="btn btn-outline-primary">Filter</button>
         </form>
         <?php endif; ?>
-        <?php if (!$branchRole): ?><a class="btn btn-primary" href="create-certificate.php">+ Issue Certificate</a><?php endif; ?>
+        <?php if ($hrRole): ?>
+            <?php if (current_admin_role() === 'hr_manager'): ?><a class="btn btn-primary" href="staff.php">+ Add staff</a><?php endif; ?>
+            <a class="btn btn-outline-primary" href="staff.php">Staff directory</a>
+        <?php elseif (!$branchRole): ?>
+            <?php if ($staffAccess): ?><a class="btn btn-outline-primary" href="staff.php">Staff</a><?php endif; ?>
+            <a class="btn btn-primary" href="create-certificate.php">+ Issue Certificate</a>
+        <?php endif; ?>
     </div>
 </div>
 
 <div class="row g-3 mb-4">
+    <?php if ($hrRole): ?>
+        <?php foreach ([
+            ['Team members', (int)$staffStats['total'], 'primary'],
+            ['Active', (int)$staffStats['active'], 'success'],
+            ['On leave', (int)$staffStats['on_leave'], 'warning'],
+            ['Joined this month', (int)$staffStats['joined_this_month'], 'info'],
+        ] as [$label, $value, $color]): ?>
+            <div class="col-6 col-lg-3"><div class="card p-3 border-start border-4 border-<?= $color ?>"><div class="text-muted"><?= e($label) ?></div><div class="stat-number"><?= $value ?></div></div></div>
+        <?php endforeach; ?>
+    <?php else: ?>
     <?php foreach ([
         ['Students', (int)$studentStats['students'], 'primary'],
         ['Active', (int)$studentStats['active'], 'success'],
@@ -145,8 +177,49 @@ require __DIR__ . '/../includes/header.php';
             </div>
         </div>
     <?php endforeach; ?>
+    <?php if ($staffAccess): foreach ([
+        ['Team members', (int)$staffStats['total'], 'primary'],
+        ['Staff active', (int)$staffStats['active'], 'success'],
+        ['Staff on leave', (int)$staffStats['on_leave'], 'warning'],
+        ['Joined this month', (int)$staffStats['joined_this_month'], 'info'],
+    ] as [$label, $value, $color]): ?>
+        <div class="col-6 col-lg-3"><div class="card p-3 border-start border-4 border-<?= $color ?>"><div class="text-muted"><?= e($label) ?></div><div class="stat-number"><?= $value ?></div></div></div>
+    <?php endforeach; ?>
+    <?php endif; ?>
+    <?php endif; ?>
 </div>
 
+<?php if ($hrRole || is_role('admin')): ?>
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3"><h5 class="fw-bold mb-0">Department headcount</h5><a href="staff.php">View directory</a></div>
+            <?php if ($staffDepartments): ?>
+                <div class="table-responsive"><table class="table">
+                    <thead><tr><th>Department</th><th>Total staff</th><th>Active</th></tr></thead>
+                    <tbody><?php foreach ($staffDepartments as $department): ?><tr><td><?= e($department['department']) ?></td><td><?= (int)$department['total'] ?></td><td><?= (int)$department['active'] ?></td></tr><?php endforeach; ?></tbody>
+                </table></div>
+            <?php else: ?>
+                <p class="text-muted mb-0">No staff records are available yet.</p>
+            <?php endif; ?>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3"><h5 class="fw-bold mb-0">Recently added staff</h5><a href="staff.php"><?= current_admin_role() === 'hr_officer' ? 'View directory' : 'Manage team' ?></a></div>
+            <?php if ($recentStaff): ?>
+                <div class="table-responsive"><table class="table">
+                    <thead><tr><th>Name</th><th>Department</th><th>Added</th></tr></thead>
+                    <tbody><?php foreach ($recentStaff as $member): ?><tr><td><?= e($member['name']) ?><div class="small text-muted"><?= e($member['job_title']) ?></div></td><td><?= e($member['department']) ?></td><td><?= e(format_date($member['created_at'])) ?></td></tr><?php endforeach; ?></tbody>
+                </table></div>
+            <?php else: ?>
+                <p class="text-muted mb-0">Staff profiles added to the directory will appear here.</p>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+<?php if (!$hrRole): ?>
 <div class="card p-3 mb-4">
     <div class="d-flex justify-content-between align-items-center mb-3"><h5 class="fw-bold mb-0">Branch Overview</h5><a href="fleet.php"><?= $branchRole || is_role('manager') || is_role('director') ? 'View fleet' : 'Manage fleet' ?></a></div>
     <div class="table-responsive"><table class="table">
@@ -181,4 +254,5 @@ require __DIR__ . '/../includes/header.php';
         </table>
     </div>
 </div>
+<?php endif; ?>
 <?php require __DIR__ . '/../includes/footer.php'; ?>

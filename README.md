@@ -5,7 +5,8 @@ A lightweight PHP/MySQL certificate issuing and QR verification system designed 
 ## What it does
 
 - Admin login
-- Role-based staff access: Admin, Manager, Director, and Branch
+- Role-based access for Admin, Manager, Director, Branch, HR Manager, and HR Officer accounts
+- Employee directory with departments, job titles, hire dates, leave/inactive status, and workforce insights
 - Issue certificates
 - Generate a unique certificate number
 - Generate a cryptographically random verification token
@@ -30,7 +31,7 @@ A lightweight PHP/MySQL certificate issuing and QR verification system designed 
 
 ## Important architecture
 
-Administrators assign roles and (for Branch users) a branch under User Management. Admins have full access. Managers and Directors have read-only access across branches, except they can issue certificates. Branch users can manage student records only for their assigned branch, can view/print certificates for that branch, and have read-only access to fleet data.
+Administrators assign roles and (for Branch users) a branch under User Management. Admins have full access. Managers and Directors have read-only access across branches, except they can issue certificates. Branch users can manage student records only for their assigned branch, can view/print certificates for that branch, and have read-only access to fleet data. HR Managers can manage employee profiles in Staff Management but cannot access student, finance, certificate, or account-administration pages. HR Officers have read-only access to the staff directory and people dashboard. Only Admins can create accounts or assign roles.
 
 The QR code contains only a URL such as:
 
@@ -137,6 +138,8 @@ Use **Fees** to adjust a student's total fee and record cash, M-Pesa, Airtel Mon
 When a student has a Kenyan mobile number on file, **Fees** can open a prefilled WhatsApp payment reminder. An admin must review and send the message. Each recorded payment can be printed as a receipt, and each student has a printable admission letter from **Students**.
 
 Use **Fleet** to register vehicles at a branch, assign available vehicles to active students in the same branch, and return or update vehicles. The Director Dashboard summarizes student counts, fees, certificates, and fleet availability by branch.
+
+Use **Staff** to maintain employee names, work contact details, department, job title, hire date, and active/on-leave/inactive status. The dashboard summarizes workforce totals, monthly hires, and department headcount. Assign the **HR Manager** role for staff-record management or **HR Officer** for read-only directory access under **Users**; both roles are restricted to people-management pages.
 
 Mark a student complete only after their configured course duration has elapsed. Before awarding student certificates, set the Director's name and upload the Director's signature under **Branding**. Certificates generated for completed students retain the admission number, course, duration, and completion date and are linked back to the student.
 

@@ -26,6 +26,24 @@ CREATE TABLE IF NOT EXISTS admins (
     INDEX idx_admin_branch (branch_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS staff (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(120) NOT NULL,
+    email VARCHAR(190) NULL,
+    phone VARCHAR(30) NULL,
+    department VARCHAR(100) NOT NULL,
+    job_title VARCHAR(120) NOT NULL,
+    hire_date DATE NULL,
+    status ENUM('active','on_leave','inactive') NOT NULL DEFAULT 'active',
+    created_by INT UNSIGNED NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_staff_department (department),
+    KEY idx_staff_status (status),
+    KEY idx_staff_hire_date (hire_date),
+    CONSTRAINT fk_staff_creator FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ============================================================================
 -- MODULE 2: CONFIGURATION & SETTINGS
 -- ============================================================================
