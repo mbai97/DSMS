@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-<<<<<<< HEAD
 if (in_array(current_admin_role(), ['hr_manager', 'hr_officer'], true)) {
     redirect(app_url($config, 'admin/hr-dashboard.php'));
 }
@@ -11,9 +10,6 @@ if (is_role('accountant')) {
     redirect(app_url($config, 'admin/accounting-dashboard.php'));
 }
 require_roles('admin', 'manager', 'director', 'branch');
-=======
-require_roles('admin', 'manager', 'director', 'branch', 'hr_manager', 'hr_officer');
->>>>>>> f91be251338f2353359be1b43ac98fffc3d194f7
 
 $branchRole = is_role('branch');
 $hrRole = in_array(current_admin_role(), ['hr_manager', 'hr_officer'], true);
@@ -140,17 +136,9 @@ require __DIR__ . '/../includes/header.php';
             <button class="btn btn-outline-primary">Filter</button>
         </form>
         <?php endif; ?>
-<<<<<<< HEAD
         <?php if (!$branchRole): ?>
             <?php if (is_role('admin')): ?><a class="btn btn-outline-primary" href="hr-dashboard.php">HR dashboard</a><?php endif; ?>
             <?php if (in_array(current_admin_role(), ['admin', 'director'], true)): ?><a class="btn btn-outline-primary" href="accounting-dashboard.php">Accounting</a><?php endif; ?>
-=======
-        <?php if ($hrRole): ?>
-            <?php if (current_admin_role() === 'hr_manager'): ?><a class="btn btn-primary" href="staff.php">+ Add staff</a><?php endif; ?>
-            <a class="btn btn-outline-primary" href="staff.php">Staff directory</a>
-        <?php elseif (!$branchRole): ?>
-            <?php if ($staffAccess): ?><a class="btn btn-outline-primary" href="staff.php">Staff</a><?php endif; ?>
->>>>>>> f91be251338f2353359be1b43ac98fffc3d194f7
             <a class="btn btn-primary" href="create-certificate.php">+ Issue Certificate</a>
         <?php endif; ?>
     </div>

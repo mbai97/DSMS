@@ -27,7 +27,6 @@ $title = $title ?? $config['app_name'];
         <?php if (admin_logged_in()): ?>
             <div class="d-flex align-items-center gap-2 app-nav-actions">
                 <?php $navRole = current_admin_role(); ?>
-<<<<<<< HEAD
                 <?php if (in_array($navRole, ['hr_manager', 'hr_officer'], true)): ?>
                     <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/hr-dashboard.php')) ?>">People dashboard</a>
                     <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/staff.php')) ?>">Staff</a>
@@ -45,23 +44,13 @@ $title = $title ?? $config['app_name'];
                     <?php if (in_array($navRole, ['admin', 'director'], true)): ?>
                         <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/accounting-dashboard.php')) ?>">Accounting</a>
                     <?php endif; ?>
-=======
-                <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/dashboard.php')) ?>">Dashboard</a>
-                <?php if (in_array($navRole, ['admin', 'hr_manager', 'hr_officer'], true)): ?>
-                    <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/staff.php')) ?>">Staff</a>
-                <?php endif; ?>
-                <?php if (!in_array($navRole, ['hr_manager', 'hr_officer'], true)): ?>
->>>>>>> f91be251338f2353359be1b43ac98fffc3d194f7
                     <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/certificates.php')) ?>">Certificates</a>
                     <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/students.php')) ?>">Students</a>
                     <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/fees.php')) ?>">Fees</a>
                     <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/fleet.php')) ?>">Fleet</a>
                     <?php if ($navRole === 'admin'): ?>
                         <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/courses.php')) ?>">Courses</a>
-<<<<<<< HEAD
                         <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/report-settings.php')) ?>">Report Settings</a>
-=======
->>>>>>> f91be251338f2353359be1b43ac98fffc3d194f7
                         <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/branding.php')) ?>">Branding</a>
                         <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/users.php')) ?>">Users</a>
                     <?php endif; ?>

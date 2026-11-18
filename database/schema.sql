@@ -44,7 +44,6 @@ CREATE TABLE IF NOT EXISTS staff (
     CONSTRAINT fk_staff_creator FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-<<<<<<< HEAD
 CREATE TABLE IF NOT EXISTS staff_salaries (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     staff_id INT UNSIGNED NOT NULL,
@@ -80,8 +79,6 @@ CREATE TABLE IF NOT EXISTS payroll_records (
     CONSTRAINT fk_payroll_updater FOREIGN KEY (updated_by) REFERENCES admins(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-=======
->>>>>>> f91be251338f2353359be1b43ac98fffc3d194f7
 -- ============================================================================
 -- MODULE 2: CONFIGURATION & SETTINGS
 -- ============================================================================

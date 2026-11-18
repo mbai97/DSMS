@@ -5,17 +5,12 @@ A lightweight PHP/MySQL certificate issuing and QR verification system designed 
 ## What it does
 
 - Admin login
-<<<<<<< HEAD
 - Role-based access for Admin, Manager, Director, Branch, HR Manager, HR Officer, and Accountant accounts
 - Separate HR dashboard and employee directory with departments, job titles, hire dates, and employment status
 - Separate accounting dashboard with student-fee insights, salary history, monthly payroll generation, and payment recording
 - Filtered daily, weekly, monthly, quarterly, semi-annual, and annual reports for enquiries, enrollments, course fees, collections, and period-end balances
 - Public enquiry capture with branch/course selection and source tracking
 - Admin-configurable scheduled report emails with delivery history
-=======
-- Role-based access for Admin, Manager, Director, Branch, HR Manager, and HR Officer accounts
-- Employee directory with departments, job titles, hire dates, leave/inactive status, and workforce insights
->>>>>>> f91be251338f2353359be1b43ac98fffc3d194f7
 - Issue certificates
 - Generate a unique certificate number
 - Generate a cryptographically random verification token
@@ -40,11 +35,7 @@ A lightweight PHP/MySQL certificate issuing and QR verification system designed 
 
 ## Important architecture
 
-<<<<<<< HEAD
-Administrators assign roles and (for Branch users) a branch under User Management. Admins have full access. Managers and Directors have read-only access across branches, except they can issue certificates. Branch users can manage student records only for their assigned branch, can view/print certificates for that branch, and have read-only access to fleet data. HR Managers can manage employee profiles in Staff Management but cannot access accounting or account-administration pages. HR Officers have read-only access to the separate people dashboard and staff directory. Accountants can manage student fees and payroll but cannot administer accounts or access HR staff-management pages. Directors can view aggregate accounting insights, but not individual salary records or make payroll changes. Only Admins can create accounts or assign roles.
-=======
-Administrators assign roles and (for Branch users) a branch under User Management. Admins have full access. Managers and Directors have read-only access across branches, except they can issue certificates. Branch users can manage student records only for their assigned branch, can view/print certificates for that branch, and have read-only access to fleet data. HR Managers can manage employee profiles in Staff Management but cannot access student, finance, certificate, or account-administration pages. HR Officers have read-only access to the staff directory and people dashboard. Only Admins can create accounts or assign roles.
->>>>>>> f91be251338f2353359be1b43ac98fffc3d194f7
+Administrators assign roles and (for Branch users) a branch under User Management. Admins have full access. Managers and Directors have read-only access across branches, except they can issue certificates. Branch users can manage student records only for their assigned branch, can view/print certificates for that branch, and have read-only access to fleet data. HR Managers can manage employee profiles in Staff Management but cannot access student, finance, certificate, accounting, or account-administration pages. HR Officers have read-only access to the separate people dashboard and staff directory. Both HR roles are restricted to people-management pages and cannot view payroll. Accountants can manage student fees and payroll but cannot administer accounts or access HR staff-management pages. Directors can view aggregate accounting insights, but not individual salary records or make payroll changes. Only Admins can create accounts or assign roles.
 
 The QR code contains only a URL such as:
 
@@ -158,15 +149,11 @@ When a student has a Kenyan mobile number on file, **Fees** can open a prefilled
 
 Use **Fleet** to register vehicles at a branch, assign available vehicles to active students in the same branch, and return or update vehicles. The Director Dashboard summarizes student counts, fees, certificates, and fleet availability by branch.
 
-<<<<<<< HEAD
 Use **HR dashboard** and **Staff** to maintain employee names, work contact details, department, job title, hire date, and active/on-leave/inactive status. The separate people dashboard summarizes workforce totals, monthly hires, and department headcount. Assign the **HR Manager** role for staff-record management or **HR Officer** for read-only directory access under **Users**; neither role can view payroll.
 
 Use **Accounting** to review student-fee collections and balances, maintain dated salary-rate history, generate monthly payroll records, adjust pending gross pay and deductions, and record payments by bank, M-Pesa, Airtel Money, cash, or other method. Payroll stores a snapshot for each staff member and month so salary changes do not rewrite previously generated or paid records. Deductions are entered manually; this system does not calculate tax, statutory contributions, payslips, or regulatory payroll filings. Assign **Accountant** to grant fee and payroll operations without HR or user-administration access. Directors can view aggregate accounting trends and totals only; individual employee salary and payment details are restricted to Admin and Accountant roles.
 
 Existing installations receive the payroll tables through the automatic database migration on the next application request. Salary rates and payroll entries are not seeded automatically.
-=======
-Use **Staff** to maintain employee names, work contact details, department, job title, hire date, and active/on-leave/inactive status. The dashboard summarizes workforce totals, monthly hires, and department headcount. Assign the **HR Manager** role for staff-record management or **HR Officer** for read-only directory access under **Users**; both roles are restricted to people-management pages.
->>>>>>> f91be251338f2353359be1b43ac98fffc3d194f7
 
 Mark a student complete only after their configured course duration has elapsed. Before awarding student certificates, set the Director's name and upload the Director's signature under **Branding**. Certificates generated for completed students retain the admission number, course, duration, and completion date and are linked back to the student.
 
