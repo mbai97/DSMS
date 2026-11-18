@@ -1,5 +1,6 @@
 <?php
 $title = $title ?? $config['app_name'];
+$mainWebsiteUrl = $config['main_website_url'] ?? 'https://beckynds.co.ke';
 ?>
 <!doctype html>
 <html lang="en">
@@ -7,7 +8,7 @@ $title = $title ?? $config['app_name'];
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= e($title) ?></title>
-    <meta name="description" content="Beckyn certificate verification portal">
+    <meta name="description" content="BeckynDS institute administration, course enquiries, and certificate portal">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -21,7 +22,7 @@ $title = $title ?? $config['app_name'];
             <span class="brand-mark" aria-hidden="true">B</span>
             <span class="brand-copy">
                 <span class="brand-name">BeckynDS</span>
-                <span class="brand-caption">Certificate Portal</span>
+                <span class="brand-caption">Institute Admin Portal</span>
             </span>
         </a>
         <?php if (admin_logged_in()): ?>
@@ -63,6 +64,13 @@ $title = $title ?? $config['app_name'];
                     <?= csrf_field() ?>
                     <button class="btn btn-sm btn-outline-primary" type="submit">Sign out</button>
                 </form>
+                <a class="btn btn-sm btn-outline-secondary" href="<?= e($mainWebsiteUrl) ?>" target="_blank" rel="noopener noreferrer">Main website</a>
+            </div>
+        <?php else: ?>
+            <div class="d-flex align-items-center gap-2 app-nav-actions">
+                <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, '#programs')) ?>">Courses</a>
+                <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, '#enquiry')) ?>">Enquiries</a>
+                <a class="btn btn-sm btn-outline-secondary" href="<?= e($mainWebsiteUrl) ?>" target="_blank" rel="noopener noreferrer">Main website</a>
             </div>
         <?php endif; ?>
     </div>

@@ -9,7 +9,8 @@ A lightweight PHP/MySQL certificate issuing and QR verification system designed 
 - Separate HR dashboard and employee directory with departments, job titles, hire dates, and employment status
 - Separate accounting dashboard with student-fee insights, salary history, monthly payroll generation, and payment recording
 - Filtered daily, weekly, monthly, quarterly, semi-annual, and annual reports for enquiries, enrollments, course fees, collections, and period-end balances
-- Public enquiry capture with branch/course selection and source tracking
+- Public website course listing and enquiry form with branch/course selection and source tracking
+- Main website link to `https://beckynds.co.ke`; DSMS is the institute administration portal
 - Admin-configurable scheduled report emails with delivery history
 - Issue certificates
 - Generate a unique certificate number

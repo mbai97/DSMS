@@ -2,8 +2,9 @@
 
 return [
     'app_url' => 'http://localhost/certificate-verification',
-    'app_name' => 'Beckyn Certificate Verification',
+    'app_name' => 'BeckynDS Institute Admin Portal',
     'issuer_name' => 'Beckyn Driving & Mechanical School',
+    'main_website_url' => 'https://beckynds.co.ke',
     'certificate_prefix' => 'BKDS',
     'timezone' => 'Africa/Nairobi',
     'db' => [

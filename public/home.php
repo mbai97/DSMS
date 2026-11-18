@@ -89,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $branches = $db->query('SELECT id, name FROM branches ORDER BY name')->fetchAll();
 $courses = $db->query('SELECT id, name, duration_days FROM courses WHERE active = 1 ORDER BY name')->fetchAll();
-$title = $config['issuer_name'] ?? 'Beckyn Driving & Mechanical School';
+$title = $config['app_name'] ?? ($config['issuer_name'] ?? 'Beckyn Driving & Mechanical School');
 require __DIR__ . '/../includes/header.php';
 ?>
 <section class="row align-items-center g-4 mb-5">
@@ -120,7 +120,7 @@ require __DIR__ . '/../includes/header.php';
 </section>
 
 <section id="programs" class="mb-5">
-    <div class="mb-3"><div class="portal-eyebrow">Our training</div><h2 class="fw-bold">Programs</h2></div>
+    <div class="mb-3"><div class="portal-eyebrow">Our training</div><h2 class="fw-bold">Courses &amp; classes</h2><p class="text-muted mb-0">Browse our active courses and choose one when sending an enquiry.</p></div>
     <div class="row g-3">
         <?php foreach ($courses as $course): ?>
             <div class="col-sm-6 col-lg-3"><div class="card p-4 h-100">
