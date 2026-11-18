@@ -477,67 +477,143 @@ if ($methodFilter !== '') {
     $queryFilters['method'] = $methodFilter;
 }
 $csvUrl = 'reports.php?' . http_build_query($queryFilters + ['format' => 'csv']);
+$resetUrl = 'reports.php?' . http_build_query([
+    'period' => $period,
+    'date' => $anchorDate->format('Y-m-d'),
+]);
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$errors && $success !== '') {
     $_SESSION['report_success'] = $success;
     redirect(app_url($config, 'admin/reports.php?' . http_build_query($queryFilters)));
 }
 
+$headlineStats = [
+    ['Collections this period', 'KES ' . number_format((float)$paymentSummary['collected'], 2), 'collections'],
+    ['Outstanding at period end', 'KES ' . number_format((float)$balanceSummary['balance'], 2), 'balance'],
+    ['New registrations', number_format((int)$registrationSummary['registrations']), 'registrations'],
+    ['Enquiries received', number_format((int)$enquirySummary['enquiries']), 'enquiries'],
+];
+$supportingStats = [
+    ['New fees billed', 'KES ' . number_format((float)$registrationSummary['fees_billed'], 2)],
+    ['Collected from new enrollments', 'KES ' . number_format((float)$collectionSplit['new_enrollment_collections'], 2)],
+    ['Top-ups from earlier enrollments', 'KES ' . number_format((float)$collectionSplit['topups'], 2)],
+    ['Payment transactions', number_format((int)$paymentSummary['transactions'])],
+    ['Students who paid', number_format((int)$paymentSummary['students_paid'])],
+    ['Students enrolled by period end', number_format((int)$balanceSummary['students_to_date'])],
+    ['Fees billed by period end', 'KES ' . number_format((float)$balanceSummary['billed'], 2)],
+];
 $title = 'Filtered Reports';
 require __DIR__ . '/../includes/header.php';
 ?>
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+<div class="report-page">
+<header class="report-hero mb-4">
     <div>
-        <div class="portal-eyebrow">Operations &amp; Finance</div>
-        <h1 class="fw-bold mb-1">Filtered Reports</h1>
-        <p class="text-muted mb-0">Enrollment, enquiries, collections, and period-end fee balances.</p>
+        <div class="portal-eyebrow">Institute performance</div>
+        <h1 class="fw-bold mb-2">Reports &amp; analytics</h1>
+        <p class="text-muted mb-3">Enrollment, enquiries, collections, and period-end fee position in one view.</p>
+        <div class="report-meta">
+            <span class="report-meta-period"><?= e($periodOptions[$period]) ?></span>
+            <span><?= e($startDate) ?> to <?= e($endDate) ?></span>
+            <span><?= e($selectedBranchName) ?></span>
+            <?php if ($selectedCourseName !== null): ?><span><?= e($selectedCourseName) ?></span><?php endif; ?>
+            <?php if ($methodFilter !== ''): ?><span><?= e($methodOptions[$methodFilter] ?? $methodFilter) ?></span><?php endif; ?>
+        </div>
     </div>
-    <div class="d-flex gap-2">
-        <a class="btn btn-outline-primary" href="<?= e($csvUrl) ?>">Download CSV</a>
-        <button class="btn btn-outline-secondary" type="button" onclick="window.print()">Print</button>
+    <div class="report-actions no-print">
+        <a class="btn btn-primary" href="<?= e($csvUrl) ?>">Download CSV</a>
+        <button class="btn btn-outline-secondary" type="button" onclick="window.print()">Print report</button>
     </div>
-</div>
+</header>
 <?php if ($errors): ?><div class="alert alert-danger"><ul class="mb-0"><?php foreach ($errors as $error): ?><li><?= e($error) ?></li><?php endforeach; ?></ul></div><?php endif; ?>
 <?php if ($success): ?><div class="alert alert-success"><?= e($success) ?></div><?php endif; ?>
 
-<div class="card p-3 mb-4">
-    <form method="get" class="row g-3 align-items-end">
-        <div class="col-sm-6 col-lg-2"><label class="form-label" for="report-period">Period</label><select class="form-select" id="report-period" name="period"><?php foreach ($periodOptions as $key => $label): ?><option value="<?= e($key) ?>" <?= $period === $key ? 'selected' : '' ?>><?= e($label) ?></option><?php endforeach; ?></select></div>
+<section class="card report-filter-card mb-4" aria-labelledby="report-filter-heading">
+    <div class="report-section-heading no-print">
+        <div>
+            <div class="portal-eyebrow">Refine your view</div>
+            <h2 class="h5 mb-0" id="report-filter-heading">Report filters</h2>
+        </div>
+        <a class="report-reset-link" href="<?= e($resetUrl) ?>">Reset filters</a>
+    </div>
+    <form method="get" class="row g-3 align-items-end no-print">
+        <div class="col-sm-6 col-lg-2"><label class="form-label" for="report-period">Reporting period</label><select class="form-select" id="report-period" name="period"><?php foreach ($periodOptions as $key => $label): ?><option value="<?= e($key) ?>" <?= $period === $key ? 'selected' : '' ?>><?= e($label) ?></option><?php endforeach; ?></select></div>
         <div class="col-sm-6 col-lg-2"><label class="form-label" for="report-date">Date within period</label><input class="form-control" id="report-date" type="date" name="date" value="<?= e($anchorDate->format('Y-m-d')) ?>" required></div>
         <?php if (!$branchRole): ?><div class="col-sm-6 col-lg-2"><label class="form-label" for="report-branch">Branch</label><select class="form-select" id="report-branch" name="branch"><option value="">All branches</option><?php foreach ($branches as $branch): ?><option value="<?= (int)$branch['id'] ?>" <?= $branchFilter === (int)$branch['id'] ? 'selected' : '' ?>><?= e($branch['name']) ?></option><?php endforeach; ?></select></div><?php endif; ?>
         <div class="col-sm-6 col-lg-2"><label class="form-label" for="report-course">Course / class</label><select class="form-select" id="report-course" name="course"><option value="">All courses</option><?php foreach ($courses as $course): ?><option value="<?= (int)$course['id'] ?>" <?= $courseFilter === (int)$course['id'] ? 'selected' : '' ?>><?= e($course['name']) ?></option><?php endforeach; ?></select></div>
         <div class="col-sm-6 col-lg-2"><label class="form-label" for="report-method">Payment method</label><select class="form-select" id="report-method" name="method"><option value="">All methods</option><?php foreach ($methodOptions as $key => $label): ?><option value="<?= e($key) ?>" <?= $methodFilter === $key ? 'selected' : '' ?>><?= e($label) ?></option><?php endforeach; ?></select></div>
         <div class="col-sm-6 col-lg-2"><button class="btn btn-primary w-100">Apply filters</button></div>
     </form>
-    <div class="small text-muted mt-3">Report period: <strong><?= e($startDate) ?></strong> through <strong><?= e($endDate) ?></strong>. The payment-method filter affects collections and payment details only; period-end balances include every payment method. Balances use students' current fee totals and payments through the period end; earlier fee changes are not historically recorded.</div>
-</div>
+    <p class="report-filter-note mb-0">Payment method filters apply to collections and payment details; period-end balances include all methods. Balances use current student fee totals and payments through the period end because historical fee changes are not recorded.</p>
+</section>
 
-<div class="row g-3 mb-4">
-    <?php foreach ([
-        ['New registrations', number_format((int)$registrationSummary['registrations']), 'primary'],
-        ['New fees billed', 'KES ' . number_format((float)$registrationSummary['fees_billed'], 2), 'dark'],
-        ['Enquiries', number_format((int)$enquirySummary['enquiries']), 'info'],
-        ['Collected in period', 'KES ' . number_format((float)$paymentSummary['collected'], 2), 'success'],
-        ['Collected from new enrollments', 'KES ' . number_format((float)$collectionSplit['new_enrollment_collections'], 2), 'primary'],
-        ['Top-ups from earlier enrollments', 'KES ' . number_format((float)$collectionSplit['topups'], 2), 'info'],
-        ['Payment transactions', number_format((int)$paymentSummary['transactions']), 'primary'],
-        ['Students who paid', number_format((int)$paymentSummary['students_paid']), 'success'],
-        ['Students enrolled by period end', number_format((int)$balanceSummary['students_to_date']), 'dark'],
-        ['Fees billed by period end', 'KES ' . number_format((float)$balanceSummary['billed'], 2), 'secondary'],
-        ['Outstanding balance at period end', 'KES ' . number_format((float)$balanceSummary['balance'], 2), 'warning'],
-    ] as [$label, $value, $color]): ?>
-        <div class="col-6 col-lg-4"><div class="card p-3 border-start border-4 border-<?= e($color) ?>"><div class="text-muted"><?= e($label) ?></div><div class="stat-number"><?= e($value) ?></div></div></div>
-    <?php endforeach; ?>
-</div>
+<section class="mb-4" aria-labelledby="report-highlights-heading">
+    <div class="report-section-heading">
+        <div>
+            <div class="portal-eyebrow">At a glance</div>
+            <h2 class="h4 mb-0" id="report-highlights-heading">Key results</h2>
+        </div>
+    </div>
+    <div class="row g-3">
+        <?php foreach ($headlineStats as [$label, $value, $tone]): ?>
+            <div class="col-sm-6 col-xl-3">
+                <article class="card report-stat-card report-stat-card--<?= e($tone) ?>">
+                    <div class="report-stat-label"><?= e($label) ?></div>
+                    <div class="report-stat-value"><?= e($value) ?></div>
+                    <div class="report-stat-period"><?= e($periodOptions[$period]) ?> report</div>
+                </article>
+            </div>
+        <?php endforeach; ?>
+    </div>
+</section>
+
+<section class="card report-support-card mb-4" aria-labelledby="report-support-heading">
+    <div class="report-section-heading">
+        <div>
+            <div class="portal-eyebrow">Supporting metrics</div>
+            <h2 class="h5 mb-0" id="report-support-heading">Enrollment &amp; payment details</h2>
+        </div>
+    </div>
+    <div class="row g-3">
+        <?php foreach ($supportingStats as [$label, $value]): ?>
+            <div class="col-6 col-md-4 col-xl-3">
+                <div class="report-support-stat">
+                    <div class="report-stat-label"><?= e($label) ?></div>
+                    <div class="report-support-value"><?= e($value) ?></div>
+                </div>
+            </div>
+        <?php endforeach; ?>
+    </div>
+</section>
 
 <div class="row g-4 mb-4">
-    <div class="col-lg-6"><div class="card p-3 h-100"><h5 class="fw-bold mb-3">Collections by payment method</h5><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Method</th><th>Transactions</th><th>Collected (KES)</th></tr></thead><tbody><?php foreach ($methodRows as $row): ?><tr><td><?= e($methodOptions[$row['payment_method']] ?? $row['payment_method']) ?></td><td><?= (int)$row['transactions'] ?></td><td><?= number_format((float)$row['amount'], 2) ?></td></tr><?php endforeach; ?><?php if (!$methodRows): ?><tr><td colspan="3" class="text-center text-muted">No payments in this period.</td></tr><?php endif; ?></tbody></table></div></div></div>
-    <div class="col-lg-6"><div class="card p-3 h-100"><h5 class="fw-bold mb-3">Course / class performance</h5><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Course</th><th>Registrations</th><th>New fees (KES)</th><th>Collected (KES)</th></tr></thead><tbody><?php foreach ($courseRows as $row): ?><tr><td><?= e($row['name']) ?></td><td><?= (int)$row['registrations'] ?></td><td><?= number_format($row['fees_billed'], 2) ?></td><td><?= number_format($row['collected'], 2) ?></td></tr><?php endforeach; ?><?php if (!$courseRows): ?><tr><td colspan="4" class="text-center text-muted">No course activity in this period.</td></tr><?php endif; ?></tbody></table></div></div></div>
+    <div class="col-lg-6">
+        <section class="card report-panel h-100" aria-labelledby="collections-method-heading">
+            <div class="report-panel-heading"><div><div class="portal-eyebrow">Collections</div><h2 class="h5 mb-0" id="collections-method-heading">By payment method</h2></div></div>
+            <div class="table-responsive"><table class="table report-table"><thead><tr><th>Method</th><th>Transactions</th><th>Collected (KES)</th></tr></thead><tbody><?php foreach ($methodRows as $row): ?><tr><td><?= e($methodOptions[$row['payment_method']] ?? $row['payment_method']) ?></td><td><?= (int)$row['transactions'] ?></td><td><?= number_format((float)$row['amount'], 2) ?></td></tr><?php endforeach; ?><?php if (!$methodRows): ?><tr><td colspan="3" class="report-empty-state">No payments in this period.</td></tr><?php endif; ?></tbody></table></div>
+        </section>
+    </div>
+    <div class="col-lg-6">
+        <section class="card report-panel h-100" aria-labelledby="course-performance-heading">
+            <div class="report-panel-heading"><div><div class="portal-eyebrow">Enrollment mix</div><h2 class="h5 mb-0" id="course-performance-heading">By course / class</h2></div></div>
+            <div class="table-responsive"><table class="table report-table"><thead><tr><th>Course</th><th>Registrations</th><th>New fees (KES)</th><th>Collected (KES)</th></tr></thead><tbody><?php foreach ($courseRows as $row): ?><tr><td><?= e($row['name']) ?></td><td><?= (int)$row['registrations'] ?></td><td><?= number_format($row['fees_billed'], 2) ?></td><td><?= number_format($row['collected'], 2) ?></td></tr><?php endforeach; ?><?php if (!$courseRows): ?><tr><td colspan="4" class="report-empty-state">No course activity in this period.</td></tr><?php endif; ?></tbody></table></div>
+        </section>
+    </div>
 </div>
 
-<div class="card p-3 mb-4"><h5 class="fw-bold mb-1">Enquiry status</h5><p class="small text-muted">Counts are for enquiries created in this period, grouped by their current status.</p><div class="row g-3"><div class="col-4"><div class="text-muted">New</div><strong><?= (int)$enquirySummary['new_count'] ?></strong></div><div class="col-4"><div class="text-muted">Contacted</div><strong><?= (int)$enquirySummary['contacted_count'] ?></strong></div><div class="col-4"><div class="text-muted">Closed</div><strong><?= (int)$enquirySummary['closed_count'] ?></strong></div></div></div>
+<section class="card report-status-panel mb-4" aria-labelledby="enquiry-status-heading">
+    <div class="report-panel-heading">
+        <div><div class="portal-eyebrow">Enquiries</div><h2 class="h5 mb-0" id="enquiry-status-heading">Current status</h2></div>
+        <span class="report-count"><?= number_format((int)$enquirySummary['enquiries']) ?> total</span>
+    </div>
+    <p class="small text-muted mb-3">Enquiries created in this period, grouped by their current status.</p>
+    <div class="row g-3">
+        <?php foreach ([['New', (int)$enquirySummary['new_count'], 'new'], ['Contacted', (int)$enquirySummary['contacted_count'], 'contacted'], ['Closed', (int)$enquirySummary['closed_count'], 'closed']] as [$label, $count, $status]): ?>
+            <div class="col-4"><div class="report-status-card report-status-card--<?= e($status) ?>"><span><?= e($label) ?></span><strong><?= $count ?></strong></div></div>
+        <?php endforeach; ?>
+    </div>
+</section>
 
 <?php if ($canManageEnquiries): ?>
-<details class="card p-3 mb-4">
+<details class="card report-enquiry-entry mb-4 no-print">
     <summary class="fw-bold">Record a new enquiry</summary>
     <form method="post" class="row g-3 mt-1">
         <?= csrf_field() ?><input type="hidden" name="action" value="add_enquiry">
@@ -557,14 +633,15 @@ require __DIR__ . '/../includes/header.php';
 <?php endif; ?>
 
 <?php if ($role !== 'director'): ?>
-<div class="card p-3 mb-4"><h5 class="fw-bold mb-3">Enquiries in period (<?= count($enquiryRows) ?>)</h5><div class="table-responsive"><table class="table"><thead><tr><th>Date</th><th>Prospect</th><th>Contact</th><th>Branch</th><th>Course</th><th>Source</th><th>Status</th><th>Notes</th><?php if ($canManageEnquiries): ?><th>Update</th><?php endif; ?></tr></thead><tbody><?php foreach ($enquiryRows as $row): ?><tr><td><?= e($row['created_at']) ?></td><td><?= e($row['prospect_name']) ?></td><td><?= e($row['phone_number'] ?? '—') ?><div class="small text-muted"><?= e($row['email'] ?? '') ?></div></td><td><?= e($row['branch_name'] ?? '—') ?></td><td><?= e($row['course_name'] ?? '—') ?></td><td><?= e(ucfirst($row['source'])) ?></td><td><?= e(ucfirst($row['status'])) ?></td><td><?= e($row['notes'] ?? '—') ?></td><?php if ($canManageEnquiries): ?><td><form method="post" class="d-flex gap-1"><?= csrf_field() ?><input type="hidden" name="action" value="update_enquiry_status"><input type="hidden" name="enquiry_id" value="<?= (int)$row['id'] ?>"><input type="hidden" name="period" value="<?= e($period) ?>"><input type="hidden" name="date" value="<?= e($anchorDate->format('Y-m-d')) ?>"><?php if ($branchFilter !== null): ?><input type="hidden" name="branch" value="<?= (int)$branchFilter ?>"><?php endif; ?><?php if ($courseFilter !== null): ?><input type="hidden" name="course" value="<?= (int)$courseFilter ?>"><?php endif; ?><?php if ($methodFilter !== ''): ?><input type="hidden" name="method" value="<?= e($methodFilter) ?>"><?php endif; ?><select class="form-select form-select-sm" name="status" aria-label="Enquiry status"><?php foreach (['new' => 'New', 'contacted' => 'Contacted', 'closed' => 'Closed'] as $key => $label): ?><option value="<?= e($key) ?>" <?= $row['status'] === $key ? 'selected' : '' ?>><?= e($label) ?></option><?php endforeach; ?></select><button class="btn btn-sm btn-outline-primary">Save</button></form></td><?php endif; ?></tr><?php endforeach; ?><?php if (!$enquiryRows): ?><tr><td colspan="<?= $canManageEnquiries ? '9' : '8' ?>" class="text-center text-muted py-4">No enquiries in this period.</td></tr><?php endif; ?></tbody></table></div></div>
+<div class="card report-panel mb-4"><div class="report-panel-heading"><div><div class="portal-eyebrow">Lead management</div><h2 class="h5 mb-0">Enquiries in period</h2></div><span class="report-count"><?= count($enquiryRows) ?> records</span></div><div class="table-responsive"><table class="table report-table"><thead><tr><th>Date</th><th>Prospect</th><th>Contact</th><th>Branch</th><th>Course</th><th>Source</th><th>Status</th><th>Notes</th><?php if ($canManageEnquiries): ?><th class="no-print">Update</th><?php endif; ?></tr></thead><tbody><?php foreach ($enquiryRows as $row): ?><tr><td><?= e($row['created_at']) ?></td><td class="fw-semibold"><?= e($row['prospect_name']) ?></td><td><?= e($row['phone_number'] ?? '—') ?><div class="small text-muted"><?= e($row['email'] ?? '') ?></div></td><td><?= e($row['branch_name'] ?? '—') ?></td><td><?= e($row['course_name'] ?? '—') ?></td><td><span class="report-source report-source--<?= e($row['source']) ?>"><?= e(ucfirst($row['source'])) ?></span></td><td><span class="report-status report-status--<?= e($row['status']) ?>"><?= e(ucfirst($row['status'])) ?></span></td><td><?= e($row['notes'] ?? '—') ?></td><?php if ($canManageEnquiries): ?><td class="no-print"><form method="post" class="d-flex gap-1"><?= csrf_field() ?><input type="hidden" name="action" value="update_enquiry_status"><input type="hidden" name="enquiry_id" value="<?= (int)$row['id'] ?>"><input type="hidden" name="period" value="<?= e($period) ?>"><input type="hidden" name="date" value="<?= e($anchorDate->format('Y-m-d')) ?>"><?php if ($branchFilter !== null): ?><input type="hidden" name="branch" value="<?= (int)$branchFilter ?>"><?php endif; ?><?php if ($courseFilter !== null): ?><input type="hidden" name="course" value="<?= (int)$courseFilter ?>"><?php endif; ?><?php if ($methodFilter !== ''): ?><input type="hidden" name="method" value="<?= e($methodFilter) ?>"><?php endif; ?><select class="form-select form-select-sm" name="status" aria-label="Enquiry status"><?php foreach (['new' => 'New', 'contacted' => 'Contacted', 'closed' => 'Closed'] as $key => $label): ?><option value="<?= e($key) ?>" <?= $row['status'] === $key ? 'selected' : '' ?>><?= e($label) ?></option><?php endforeach; ?></select><button class="btn btn-sm btn-outline-primary">Save</button></form></td><?php endif; ?></tr><?php endforeach; ?><?php if (!$enquiryRows): ?><tr><td colspan="<?= $canManageEnquiries ? '9' : '8' ?>" class="report-empty-state">No enquiries in this period.</td></tr><?php endif; ?></tbody></table></div></div>
 <?php endif; ?>
 
 <?php if ($role !== 'director'): ?>
-<div class="card p-3 mb-4"><h5 class="fw-bold mb-3">Enrollments in period (<?= count($enrollmentRows) ?>)</h5><div class="table-responsive"><table class="table"><thead><tr><th>Date</th><th>Admission</th><th>Student</th><th>Course</th><th>Branch</th><th>Fees billed (KES)</th></tr></thead><tbody><?php foreach ($enrollmentRows as $row): ?><tr><td><?= e($row['enrollment_date']) ?></td><td><?= e($row['admission_number'] ?? '—') ?></td><td><?= e($row['holder_name']) ?></td><td><?= e($row['course_name']) ?></td><td><?= e($row['branch_name'] ?? '—') ?></td><td><?= number_format((float)$row['total_fee'], 2) ?></td></tr><?php endforeach; ?><?php if (!$enrollmentRows): ?><tr><td colspan="6" class="text-center text-muted py-4">No enrollments in this period.</td></tr><?php endif; ?></tbody></table></div></div>
+<div class="card report-panel mb-4"><div class="report-panel-heading"><div><div class="portal-eyebrow">Admissions</div><h2 class="h5 mb-0">Enrollments in period</h2></div><span class="report-count"><?= count($enrollmentRows) ?> records</span></div><div class="table-responsive"><table class="table report-table"><thead><tr><th>Date</th><th>Admission</th><th>Student</th><th>Course</th><th>Branch</th><th>Fees billed (KES)</th></tr></thead><tbody><?php foreach ($enrollmentRows as $row): ?><tr><td><?= e($row['enrollment_date']) ?></td><td><?= e($row['admission_number'] ?? '—') ?></td><td class="fw-semibold"><?= e($row['holder_name']) ?></td><td><?= e($row['course_name']) ?></td><td><?= e($row['branch_name'] ?? '—') ?></td><td><?= number_format((float)$row['total_fee'], 2) ?></td></tr><?php endforeach; ?><?php if (!$enrollmentRows): ?><tr><td colspan="6" class="report-empty-state">No enrollments in this period.</td></tr><?php endif; ?></tbody></table></div></div>
 
-<div class="card p-3"><h5 class="fw-bold mb-3">Payments in period (<?= count($paymentRows) ?>)</h5><div class="table-responsive"><table class="table"><thead><tr><th>Date</th><th>Student / admission</th><th>Course</th><th>Branch</th><th>Method</th><th>Reference</th><th>Amount (KES)</th><th>Receipt</th></tr></thead><tbody><?php foreach ($paymentRows as $row): ?><tr><td><?= e($row['paid_at']) ?></td><td><?= e($row['holder_name']) ?><div class="small text-muted"><?= e($row['admission_number'] ?? '—') ?></div></td><td><?= e($row['course_name']) ?></td><td><?= e($row['branch_name'] ?? '—') ?></td><td><?= e($methodOptions[$row['payment_method']] ?? $row['payment_method']) ?></td><td><?= e($row['reference'] ?? '—') ?></td><td><?= number_format((float)$row['amount'], 2) ?></td><td><a class="btn btn-sm btn-outline-primary" href="receipt.php?id=<?= (int)$row['id'] ?>" target="_blank" rel="noopener">Receipt</a></td></tr><?php endforeach; ?><?php if (!$paymentRows): ?><tr><td colspan="8" class="text-center text-muted py-4">No payments in this period.</td></tr><?php endif; ?></tbody></table></div></div>
+<div class="card report-panel"><div class="report-panel-heading"><div><div class="portal-eyebrow">Cash flow</div><h2 class="h5 mb-0">Payments in period</h2></div><span class="report-count"><?= count($paymentRows) ?> records</span></div><div class="table-responsive"><table class="table report-table"><thead><tr><th>Date</th><th>Student / admission</th><th>Course</th><th>Branch</th><th>Method</th><th>Reference</th><th>Amount (KES)</th><th class="no-print">Receipt</th></tr></thead><tbody><?php foreach ($paymentRows as $row): ?><tr><td><?= e($row['paid_at']) ?></td><td class="fw-semibold"><?= e($row['holder_name']) ?><div class="small text-muted fw-normal"><?= e($row['admission_number'] ?? '—') ?></div></td><td><?= e($row['course_name']) ?></td><td><?= e($row['branch_name'] ?? '—') ?></td><td><?= e($methodOptions[$row['payment_method']] ?? $row['payment_method']) ?></td><td><?= e($row['reference'] ?? '—') ?></td><td><?= number_format((float)$row['amount'], 2) ?></td><td class="no-print"><a class="btn btn-sm btn-outline-primary" href="receipt.php?id=<?= (int)$row['id'] ?>" target="_blank" rel="noopener">Receipt</a></td></tr><?php endforeach; ?><?php if (!$paymentRows): ?><tr><td colspan="8" class="report-empty-state">No payments in this period.</td></tr><?php endif; ?></tbody></table></div></div>
 <?php else: ?>
 <div class="alert alert-info">Individual enquiry, enrollment, and payment details are restricted for director accounts; the CSV export contains aggregate summaries only.</div>
 <?php endif; ?>
+</div>
 <?php require __DIR__ . '/../includes/footer.php'; ?>

@@ -38,25 +38,33 @@ $mainWebsiteUrl = $config['main_website_url'] ?? 'https://beckynds.co.ke';
                 <?php else: ?>
                     <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/dashboard.php')) ?>">Dashboard</a>
                     <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/reports.php')) ?>">Reports</a>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Operations</button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="<?= e(app_url($config, 'admin/certificates.php')) ?>">Certificates</a></li>
+                            <li><a class="dropdown-item" href="<?= e(app_url($config, 'admin/students.php')) ?>">Students</a></li>
+                            <li><a class="dropdown-item" href="<?= e(app_url($config, 'admin/fees.php')) ?>">Fees &amp; payments</a></li>
+                            <li><a class="dropdown-item" href="<?= e(app_url($config, 'admin/fleet.php')) ?>">Fleet</a></li>
+                            <?php if ($navRole === 'admin'): ?><li><hr class="dropdown-divider"></li><li><a class="dropdown-item" href="<?= e(app_url($config, 'admin/courses.php')) ?>">Course catalog</a></li><?php endif; ?>
+                        </ul>
+                    </div>
                     <?php if ($navRole === 'admin'): ?>
-                        <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/hr-dashboard.php')) ?>">HR dashboard</a>
-                        <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/staff.php')) ?>">Staff</a>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Administration</button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="<?= e(app_url($config, 'admin/hr-dashboard.php')) ?>">HR dashboard</a></li>
+                                <li><a class="dropdown-item" href="<?= e(app_url($config, 'admin/staff.php')) ?>">Staff</a></li>
+                                <li><a class="dropdown-item" href="<?= e(app_url($config, 'admin/report-settings.php')) ?>">Report settings</a></li>
+                                <li><a class="dropdown-item" href="<?= e(app_url($config, 'admin/branding.php')) ?>">Branding</a></li>
+                                <li><a class="dropdown-item" href="<?= e(app_url($config, 'admin/users.php')) ?>">Users &amp; access</a></li>
+                            </ul>
+                        </div>
                     <?php endif; ?>
                     <?php if (in_array($navRole, ['admin', 'director'], true)): ?>
                         <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/accounting-dashboard.php')) ?>">Accounting</a>
                     <?php endif; ?>
-                    <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/certificates.php')) ?>">Certificates</a>
-                    <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/students.php')) ?>">Students</a>
-                    <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/fees.php')) ?>">Fees</a>
-                    <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/fleet.php')) ?>">Fleet</a>
-                    <?php if ($navRole === 'admin'): ?>
-                        <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/courses.php')) ?>">Courses</a>
-                        <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/report-settings.php')) ?>">Report Settings</a>
-                        <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/branding.php')) ?>">Branding</a>
-                        <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/users.php')) ?>">Users</a>
-                    <?php endif; ?>
                     <?php if (in_array($navRole, ['admin', 'manager', 'director'], true)): ?>
-                        <a class="btn btn-sm btn-primary" href="<?= e(app_url($config, 'admin/create-certificate.php')) ?>">Issue Certificate</a>
+                        <a class="btn btn-sm btn-primary" href="<?= e(app_url($config, 'admin/create-certificate.php')) ?>">Issue certificate</a>
                     <?php endif; ?>
                 <?php endif; ?>
                 <span class="badge text-bg-light"><?= e(strtoupper($navRole)) ?></span>
