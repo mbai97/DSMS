@@ -35,6 +35,7 @@ function run_staff_management_migration(PDO $db): void
     $stmt->execute([$version]);
 }
 
+<<<<<<< HEAD
 function run_accounting_migration(PDO $db): void
 {
     $version = 'accounting-payroll-20261110';
@@ -184,6 +185,8 @@ function run_automated_reporting_migration(PDO $db): void
     $stmt->execute([$version]);
 }
 
+=======
+>>>>>>> f91be251338f2353359be1b43ac98fffc3d194f7
 function run_database_migrations(PDO $db): void
 {
     $db->exec(
@@ -196,9 +199,12 @@ function run_database_migrations(PDO $db): void
     $version->execute(['role-branch-access-20261021']);
     if ($version->fetchColumn()) {
         run_staff_management_migration($db);
+<<<<<<< HEAD
         run_accounting_migration($db);
         run_reporting_migration($db);
         run_automated_reporting_migration($db);
+=======
+>>>>>>> f91be251338f2353359be1b43ac98fffc3d194f7
         return;
     }
     $db->exec(
@@ -365,7 +371,10 @@ function run_database_migrations(PDO $db): void
     $stmt = $db->prepare('INSERT IGNORE INTO app_migrations (version) VALUES (?)');
     $stmt->execute(['role-branch-access-20261021']);
     run_staff_management_migration($db);
+<<<<<<< HEAD
     run_accounting_migration($db);
     run_reporting_migration($db);
     run_automated_reporting_migration($db);
+=======
+>>>>>>> f91be251338f2353359be1b43ac98fffc3d194f7
 }
