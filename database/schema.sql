@@ -26,6 +26,59 @@ CREATE TABLE IF NOT EXISTS admins (
     INDEX idx_admin_branch (branch_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS staff (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(120) NOT NULL,
+    email VARCHAR(190) NULL,
+    phone VARCHAR(30) NULL,
+    department VARCHAR(100) NOT NULL,
+    job_title VARCHAR(120) NOT NULL,
+    hire_date DATE NULL,
+    status ENUM('active','on_leave','inactive') NOT NULL DEFAULT 'active',
+    created_by INT UNSIGNED NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_staff_department (department),
+    KEY idx_staff_status (status),
+    KEY idx_staff_hire_date (hire_date),
+    CONSTRAINT fk_staff_creator FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS staff_salaries (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    staff_id INT UNSIGNED NOT NULL,
+    monthly_salary DECIMAL(12,2) NOT NULL,
+    effective_from DATE NOT NULL,
+    updated_by INT UNSIGNED NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_staff_salary_effective (staff_id, effective_from),
+    KEY idx_staff_salary_effective (effective_from),
+    CONSTRAINT fk_salary_staff FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_salary_updater FOREIGN KEY (updated_by) REFERENCES admins(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS payroll_records (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    staff_id INT UNSIGNED NOT NULL,
+    payroll_month DATE NOT NULL,
+    gross_salary DECIMAL(12,2) NOT NULL,
+    deductions DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    net_salary DECIMAL(12,2) NOT NULL,
+    status ENUM('pending','paid') NOT NULL DEFAULT 'pending',
+    paid_at DATETIME NULL,
+    payment_method ENUM('cash','mpesa','airtel_money','bank','other') NULL,
+    payment_reference VARCHAR(100) NULL,
+    created_by INT UNSIGNED NULL,
+    updated_by INT UNSIGNED NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_payroll_staff_month (staff_id, payroll_month),
+    KEY idx_payroll_month_status (payroll_month, status),
+    CONSTRAINT fk_payroll_staff FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_payroll_creator FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL,
+    CONSTRAINT fk_payroll_updater FOREIGN KEY (updated_by) REFERENCES admins(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ============================================================================
 -- MODULE 2: CONFIGURATION & SETTINGS
 -- ============================================================================
@@ -150,6 +203,41 @@ CREATE TABLE IF NOT EXISTS student_payments (
     CONSTRAINT fk_payment_admin FOREIGN KEY (received_by) REFERENCES admins(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS enquiries (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    prospect_name VARCHAR(190) NOT NULL,
+    phone_number VARCHAR(30) NULL,
+    email VARCHAR(190) NULL,
+    branch_id INT UNSIGNED NULL,
+    course_id INT UNSIGNED NULL,
+    notes VARCHAR(500) NULL,
+    status ENUM('new','contacted','closed') NOT NULL DEFAULT 'new',
+    source ENUM('staff','public') NOT NULL DEFAULT 'staff',
+    recorded_by INT UNSIGNED NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_enquiries_created_at (created_at),
+    KEY idx_enquiries_branch_course (branch_id, course_id),
+    KEY idx_enquiries_status (status),
+    CONSTRAINT fk_enquiry_branch FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE SET NULL,
+    CONSTRAINT fk_enquiry_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE SET NULL,
+    CONSTRAINT fk_enquiry_recorder FOREIGN KEY (recorded_by) REFERENCES admins(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS scheduled_report_runs (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    period_type VARCHAR(20) NOT NULL,
+    period_start DATE NOT NULL,
+    period_end DATE NOT NULL,
+    recipient_email VARCHAR(190) NOT NULL,
+    status ENUM('sent','failed') NOT NULL,
+    error_message VARCHAR(500) NULL,
+    attempted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    sent_at DATETIME NULL,
+    UNIQUE KEY uq_scheduled_report_delivery (period_type, period_start, recipient_email),
+    KEY idx_scheduled_report_attempt (status, attempted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 INSERT IGNORE INTO branches (name, code) VALUES
     ('Machakos', 'MAC'), ('Tala', 'TAL'), ('Kimutwa', 'KIM'), ('Kitengela', 'KIT');
 
@@ -157,7 +245,17 @@ INSERT IGNORE INTO courses (name, code, certificate_type) VALUES
     ('Driving School', 'DR', 'Certificate of Competence'),
     ('Computer Packages', 'CP', 'Computer Packages'),
     ('Defensive Driving', 'DD', 'Defensive Driving'),
-    ('Mechanics', 'ME', 'Mechanical Artisan');
+    ('Mechanics', 'ME', 'Mechanical Artisan'),
+    ('A1', 'A1', 'Certificate of Competence'),
+    ('A2', 'A2', 'Certificate of Competence'),
+    ('B', 'B', 'Certificate of Competence'),
+    ('B1', 'B1', 'Certificate of Competence'),
+    ('B2', 'B2', 'Certificate of Competence'),
+    ('B3', 'B3', 'Certificate of Competence'),
+    ('C', 'C', 'Certificate of Competence'),
+    ('C1', 'C1', 'Certificate of Competence'),
+    ('D1', 'D1', 'Certificate of Competence'),
+    ('First Aid', 'FA', 'First Aid');
 
 -- ============================================================================
 -- MODULE 4: CERTIFICATE MANAGEMENT
@@ -225,7 +323,10 @@ VALUES
     ('brand_color', '#1ca7d9'),
     ('accent_color', '#d7265b'),
     ('gold_color', '#d4af37'),
-    ('signature_label', 'Authorized Signatory');
+    ('signature_label', 'Authorized Signatory'),
+    ('report_recipients', ''),
+    ('report_sender', ''),
+    ('report_schedule', 'day,week,month,quarter,half_year,year');
 
 -- ============================================================================
 -- STORED PROCEDURES & HELPER FUNCTIONS

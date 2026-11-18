@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (strlen($password) < 8 || strlen($password) > 4096) {
             $errors[] = 'Password must be between 8 and 4,096 characters.';
         }
-        if (!in_array($role, ['admin', 'manager', 'director', 'branch'], true)) {
+        if (!in_array($role, ['admin', 'manager', 'director', 'branch', 'hr_manager', 'hr_officer', 'accountant'], true)) {
             $errors[] = 'Select a valid role.';
         }
         if ($role === 'branch' && ($branchId === false || $branchId === null || $branchId < 1)) {
@@ -86,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int)($_POST['user_id'] ?? 0);
         $role = is_string($_POST['role'] ?? null) ? trim($_POST['role']) : '';
         $branchId = filter_var($_POST['branch_id'] ?? null, FILTER_VALIDATE_INT);
-        if (!in_array($role, ['admin', 'manager', 'director', 'branch'], true)) {
+        if (!in_array($role, ['admin', 'manager', 'director', 'branch', 'hr_manager', 'hr_officer', 'accountant'], true)) {
             $errors[] = 'Select a valid role.';
         } elseif ($role === 'branch' && ($branchId === false || $branchId === null || $branchId < 1)) {
             $errors[] = 'Select a branch for this user.';
@@ -163,6 +163,9 @@ require __DIR__ . '/../includes/header.php';
                     <option value="manager" <?= $formRole === 'manager' ? 'selected' : '' ?>>Manager (read-only)</option>
                     <option value="director" <?= $formRole === 'director' ? 'selected' : '' ?>>Director</option>
                     <option value="branch" <?= $formRole === 'branch' ? 'selected' : '' ?>>Branch</option>
+                    <option value="hr_manager" <?= $formRole === 'hr_manager' ? 'selected' : '' ?>>HR Manager (staff management)</option>
+                    <option value="hr_officer" <?= $formRole === 'hr_officer' ? 'selected' : '' ?>>HR Officer (staff directory, read-only)</option>
+                    <option value="accountant" <?= $formRole === 'accountant' ? 'selected' : '' ?>>Accountant (payroll management)</option>
                 </select>
             </div>
             <div class="col-md-6 mt-3">
@@ -213,6 +216,9 @@ require __DIR__ . '/../includes/header.php';
                                             <option value="manager" <?= $user['role'] === 'manager' ? 'selected' : '' ?>>Manager</option>
                                             <option value="director" <?= $user['role'] === 'director' ? 'selected' : '' ?>>Director</option>
                                             <option value="branch" <?= $user['role'] === 'branch' ? 'selected' : '' ?>>Branch</option>
+                                            <option value="hr_manager" <?= $user['role'] === 'hr_manager' ? 'selected' : '' ?>>HR Manager</option>
+                                            <option value="hr_officer" <?= $user['role'] === 'hr_officer' ? 'selected' : '' ?>>HR Officer</option>
+                                            <option value="accountant" <?= $user['role'] === 'accountant' ? 'selected' : '' ?>>Accountant</option>
                                         </select>
                                         <select name="branch_id" class="form-select form-select-sm mt-1" style="width:auto;">
                                             <option value="">No branch</option>

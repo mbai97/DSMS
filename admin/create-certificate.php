@@ -34,6 +34,7 @@ $certificateTypes = [
     'Certificate of Competence',
     'Defensive Driving',
     'Computer Packages',
+    'First Aid',
     'Mechanical Artisan',
 ];
 $selectedType = is_string($_POST['certificate_type'] ?? null)

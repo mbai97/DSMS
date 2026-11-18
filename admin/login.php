@@ -5,7 +5,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/../includes/bootstrap.php';
 
 if (admin_logged_in()) {
-    redirect('dashboard.php');
+    redirect(match (current_admin_role()) {
+        'hr_manager', 'hr_officer' => 'hr-dashboard.php',
+        'accountant' => 'accounting-dashboard.php',
+        default => 'dashboard.php',
+    });
 }
 
 $error = '';
@@ -22,7 +26,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($admin && password_verify($password, $admin['password_hash'])) {
         login_admin((int)$admin['id']);
-        redirect('dashboard.php');
+        redirect(match ($admin['role']) {
+            'hr_manager', 'hr_officer' => 'hr-dashboard.php',
+            'accountant' => 'accounting-dashboard.php',
+            default => 'dashboard.php',
+        });
     }
 
     $error = 'Invalid email or password.';

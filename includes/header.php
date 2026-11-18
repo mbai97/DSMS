@@ -27,18 +27,36 @@ $title = $title ?? $config['app_name'];
         <?php if (admin_logged_in()): ?>
             <div class="d-flex align-items-center gap-2 app-nav-actions">
                 <?php $navRole = current_admin_role(); ?>
-                <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/dashboard.php')) ?>">Dashboard</a>
-                <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/certificates.php')) ?>">Certificates</a>
-                <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/students.php')) ?>">Students</a>
-                <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/fees.php')) ?>">Fees</a>
-                <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/fleet.php')) ?>">Fleet</a>
-                <?php if ($navRole === 'admin'): ?>
-                    <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/courses.php')) ?>">Courses</a>
-                    <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/branding.php')) ?>">Branding</a>
-                    <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/users.php')) ?>">Users</a>
-                <?php endif; ?>
-                <?php if (in_array($navRole, ['admin', 'manager', 'director'], true)): ?>
-                    <a class="btn btn-sm btn-primary" href="<?= e(app_url($config, 'admin/create-certificate.php')) ?>">Issue Certificate</a>
+                <?php if (in_array($navRole, ['hr_manager', 'hr_officer'], true)): ?>
+                    <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/hr-dashboard.php')) ?>">People dashboard</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/staff.php')) ?>">Staff</a>
+                <?php elseif ($navRole === 'accountant'): ?>
+                    <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/accounting-dashboard.php')) ?>">Accounting dashboard</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/reports.php')) ?>">Reports</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/fees.php')) ?>">Student fees</a>
+                <?php else: ?>
+                    <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/dashboard.php')) ?>">Dashboard</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/reports.php')) ?>">Reports</a>
+                    <?php if ($navRole === 'admin'): ?>
+                        <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/hr-dashboard.php')) ?>">HR dashboard</a>
+                        <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/staff.php')) ?>">Staff</a>
+                    <?php endif; ?>
+                    <?php if (in_array($navRole, ['admin', 'director'], true)): ?>
+                        <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/accounting-dashboard.php')) ?>">Accounting</a>
+                    <?php endif; ?>
+                    <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/certificates.php')) ?>">Certificates</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/students.php')) ?>">Students</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/fees.php')) ?>">Fees</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/fleet.php')) ?>">Fleet</a>
+                    <?php if ($navRole === 'admin'): ?>
+                        <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/courses.php')) ?>">Courses</a>
+                        <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/report-settings.php')) ?>">Report Settings</a>
+                        <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/branding.php')) ?>">Branding</a>
+                        <a class="btn btn-sm btn-outline-secondary" href="<?= e(app_url($config, 'admin/users.php')) ?>">Users</a>
+                    <?php endif; ?>
+                    <?php if (in_array($navRole, ['admin', 'manager', 'director'], true)): ?>
+                        <a class="btn btn-sm btn-primary" href="<?= e(app_url($config, 'admin/create-certificate.php')) ?>">Issue Certificate</a>
+                    <?php endif; ?>
                 <?php endif; ?>
                 <span class="badge text-bg-light"><?= e(strtoupper($navRole)) ?></span>
                 <form method="post" action="<?= e(app_url($config, 'admin/logout.php')) ?>" class="m-0">
